@@ -24,6 +24,9 @@ server/data/coach.db-wal
 # Local planning artifacts
 docs/plans/
 
+# Generated bank questions - reproducible from seed/, kept out of git
+server/bank/generated/
+
 # OS
 .DS_Store
 
