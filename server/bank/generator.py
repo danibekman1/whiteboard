@@ -1,0 +1,99 @@
+"""Generate one question's full JSON from a seed entry, via Opus forced tool-use."""
+from __future__ import annotations
+import os
+from dataclasses import dataclass
+
+import anthropic
+
+from bank.schemas import QuestionJSON
+
+
+@dataclass
+class GenerationInput:
+    slug: str
+    title: str
+    difficulty: str
+    topic: str  # primary topic slug (additional topics OK in output)
+    leetcode_id: int | None = None
+    optimal_time: str | None = None
+    optimal_space: str | None = None
+
+
+SYSTEM_PROMPT = """You are an expert software-engineering interview question author.
+
+You will receive a brief description of a known interview problem (slug,
+title, difficulty, primary topic, optimal complexity). Produce a complete
+question record by calling submit_question.
+
+Requirements:
+
+- statement: clear, concise, LeetCode-style. Include I/O constraints, but
+  avoid pasting LeetCode's exact wording.
+- canonical_solution.code: pure Python 3 function, named after the slug
+  with hyphens replaced by underscores (slug 'two-sum' -> 'two_sum').
+  No imports unless strictly required. No I/O. Function takes positional
+  args matching test_cases input lists.
+- canonical_solution.time/space: must match the optimal complexity given
+  in the seed (notation like 'O(n)', 'O(n log n)', 'O(1)').
+- test_cases: minimum 3, must include at least one edge case (empty,
+  single element, duplicate values, target=0, etc.). Inputs are positional
+  args to the function.
+- steps: 3-10 steps capturing the SOCRATIC reasoning a candidate should
+  articulate at the whiteboard. Each step is a *thought* the candidate
+  has, in order. NOT code. Pattern tags are short lowercase identifiers
+  like 'complexity-analysis', 'hashing', 'edge-cases'.
+- hints: exactly 3 per step, escalating from gentle (level 1) to revealing
+  (level 3). Level 3 should make the step almost impossible to miss.
+
+Submit by calling submit_question. Do not respond in plain text.
+"""
+
+
+def _build_user_message(seed: GenerationInput) -> str:
+    parts = [
+        f"slug: {seed.slug}",
+        f"title: {seed.title}",
+        f"difficulty: {seed.difficulty}",
+        f"primary topic: {seed.topic}",
+    ]
+    if seed.leetcode_id is not None:
+        parts.append(f"leetcode_id: {seed.leetcode_id}")
+    if seed.optimal_time:
+        parts.append(f"optimal time: {seed.optimal_time}")
+    if seed.optimal_space:
+        parts.append(f"optimal space: {seed.optimal_space}")
+    return "\n".join(parts)
+
+
+SUBMIT_TOOL = {
+    "name": "submit_question",
+    "description": "Submit the complete question record.",
+    "input_schema": QuestionJSON.model_json_schema(),
+}
+
+
+def generate(
+    *,
+    client: anthropic.Anthropic,
+    seed: GenerationInput,
+    model: str | None = None,
+    extra_user_note: str | None = None,
+) -> QuestionJSON:
+    """One-shot generation. extra_user_note is appended on retry."""
+    model = model or os.environ.get("CLAUDE_COACH_MODEL", "claude-opus-4-7")
+    user = _build_user_message(seed)
+    if extra_user_note:
+        user += f"\n\nNote on this attempt:\n{extra_user_note}"
+    response = client.messages.create(
+        model=model,
+        max_tokens=8192,
+        system=SYSTEM_PROMPT,
+        tools=[SUBMIT_TOOL],
+        tool_choice={"type": "tool", "name": "submit_question"},
+        messages=[{"role": "user", "content": user}],
+        timeout=120.0,
+    )
+    for block in response.content:
+        if getattr(block, "type", None) == "tool_use" and block.name == "submit_question":
+            return QuestionJSON.model_validate(block.input)
+    raise ValueError("generator returned no tool_use block")
