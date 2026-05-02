@@ -97,3 +97,32 @@ def generate(
         if getattr(block, "type", None) == "tool_use" and block.name == "submit_question":
             return QuestionJSON.model_validate(block.input)
     raise ValueError("generator returned no tool_use block")
+
+
+class GenerationFailed(Exception):
+    def __init__(self, slug: str, attempt_errors: list[str]):
+        self.slug = slug
+        self.attempt_errors = attempt_errors
+        super().__init__(f"{slug}: {len(attempt_errors)} attempts failed: {attempt_errors[-1]}")
+
+
+def generate_with_retries(
+    *,
+    client: anthropic.Anthropic,
+    seed: GenerationInput,
+    max_attempts: int = 3,
+    model: str | None = None,
+) -> QuestionJSON:
+    errors: list[str] = []
+    note: str | None = None
+    for attempt in range(max_attempts):
+        try:
+            return generate(client=client, seed=seed, model=model, extra_user_note=note)
+        except Exception as e:
+            errors.append(f"attempt {attempt + 1}: {e}")
+            note = (
+                "Previous attempt failed validation:\n"
+                f"{e}\n\n"
+                "Address the specific failure above and resubmit."
+            )
+    raise GenerationFailed(slug=seed.slug, attempt_errors=errors)

@@ -69,3 +69,50 @@ def test_generate_raises_on_no_tool_use():
             client=client,
             seed=GenerationInput(slug="x", title="X", difficulty="easy", topic="t"),
         )
+
+
+def _make_response(payload: dict):
+    response = MagicMock()
+    block = MagicMock()
+    block.type = "tool_use"
+    block.name = "submit_question"
+    block.input = payload
+    response.content = [block]
+    return response
+
+
+def test_generate_with_retries_retries_on_validation_failure():
+    """First call returns a payload missing one hint; second call returns valid."""
+    bad = _good_payload()
+    bad["steps"][0]["hints"] = [{"level": 1, "text": "only one"}]
+    good = _good_payload()
+    client = MagicMock()
+    client.messages.create.side_effect = [_make_response(bad), _make_response(good)]
+
+    from bank.generator import generate_with_retries
+    q = generate_with_retries(
+        client=client,
+        seed=GenerationInput(slug="two-sum", title="Two Sum", difficulty="easy", topic="arrays-hashing"),
+        max_attempts=3,
+    )
+    assert q.slug == "two-sum"
+    assert client.messages.create.call_count == 2
+    second_call_msg = client.messages.create.call_args_list[1][1]["messages"][0]["content"]
+    assert "hints" in second_call_msg.lower() or "level" in second_call_msg.lower()
+
+
+def test_generate_with_retries_gives_up_after_max():
+    bad = _good_payload()
+    bad["steps"] = bad["steps"][:1]  # too few steps - always fails
+    client = MagicMock()
+    client.messages.create.return_value = _make_response(bad)
+
+    from bank.generator import generate_with_retries, GenerationFailed
+    with pytest.raises(GenerationFailed) as ei:
+        generate_with_retries(
+            client=client,
+            seed=GenerationInput(slug="x", title="X", difficulty="easy", topic="t"),
+            max_attempts=3,
+        )
+    assert client.messages.create.call_count == 3
+    assert len(ei.value.attempt_errors) == 3
