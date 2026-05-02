@@ -80,3 +80,23 @@ def ingest_bank(conn: sqlite3.Connection, generated_dir: Path) -> int:
         n += 1
     conn.commit()
     return n
+
+
+def _cli() -> int:
+    import argparse
+    import contextlib
+    from whiteboard_mcp.db import connect, ensure_schema
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--db", type=Path, default=Path(__file__).parent.parent / "data" / "coach.db")
+    ap.add_argument("--dir", type=Path, default=Path(__file__).parent / "generated")
+    args = ap.parse_args()
+    args.db.parent.mkdir(parents=True, exist_ok=True)
+    with contextlib.closing(connect(args.db)) as conn:
+        ensure_schema(conn)
+        n = ingest_bank(conn, args.dir)
+        print(f"ingested {n} questions into {args.db}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_cli())
