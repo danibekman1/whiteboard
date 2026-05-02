@@ -1,0 +1,33 @@
+{
+  "slug": "reverse-linked-list",
+  "title": "Reverse Linked List",
+  "difficulty": "easy",
+  "statement": "Given the head of a singly linked list, reverse the list and return the new head. Solve it in-place by rewiring next pointers.",
+  "steps": [
+    {
+      "ordinal": 1,
+      "description": "State the goal in terms of pointers: each node's next should point to its previous node, so the original head becomes the tail.",
+      "pattern_tags": ["linked-list-rewire"]
+    },
+    {
+      "ordinal": 2,
+      "description": "Identify the three pointers needed during iteration: prev, curr, and a saved next.",
+      "pattern_tags": ["linked-list-rewire"]
+    },
+    {
+      "ordinal": 3,
+      "description": "Walk through the rewire sequence per node: save curr.next, point curr.next to prev, advance prev=curr and curr=saved.",
+      "pattern_tags": ["iteration"]
+    },
+    {
+      "ordinal": 4,
+      "description": "Handle the empty-list and single-node edge cases (return head unchanged in both).",
+      "pattern_tags": ["edge-cases"]
+    },
+    {
+      "ordinal": 5,
+      "description": "State complexity: O(n) time, O(1) space.",
+      "pattern_tags": ["complexity-analysis"]
+    }
+  ]
+}

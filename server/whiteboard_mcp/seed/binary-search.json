@@ -1,0 +1,38 @@
+{
+  "slug": "binary-search",
+  "title": "Binary Search",
+  "difficulty": "easy",
+  "statement": "Given a sorted array of integers nums and an integer target, return the index of target in nums, or -1 if it is not present. You must run in O(log n) time.",
+  "steps": [
+    {
+      "ordinal": 1,
+      "description": "Recognize the sorted input enables halving the search space at each step.",
+      "pattern_tags": ["binary-search"]
+    },
+    {
+      "ordinal": 2,
+      "description": "Set the loop invariant: if target is anywhere in the array, it is within [lo, hi].",
+      "pattern_tags": ["invariants"]
+    },
+    {
+      "ordinal": 3,
+      "description": "Compute mid carefully (lo + (hi - lo) // 2 to avoid overflow in languages where it matters).",
+      "pattern_tags": ["binary-search"]
+    },
+    {
+      "ordinal": 4,
+      "description": "Decide loop termination: continue while lo <= hi; on each iteration shrink to [lo, mid-1] or [mid+1, hi].",
+      "pattern_tags": ["invariants"]
+    },
+    {
+      "ordinal": 5,
+      "description": "Handle the target-not-present case: when the loop exits without a match, return -1.",
+      "pattern_tags": ["edge-cases"]
+    },
+    {
+      "ordinal": 6,
+      "description": "State complexity: O(log n) time, O(1) space.",
+      "pattern_tags": ["complexity-analysis"]
+    }
+  ]
+}

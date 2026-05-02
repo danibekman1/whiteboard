@@ -1,0 +1,38 @@
+{
+  "slug": "two-sum",
+  "title": "Two Sum",
+  "difficulty": "easy",
+  "statement": "Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target. You may assume there is exactly one solution. You may not use the same element twice.",
+  "steps": [
+    {
+      "ordinal": 1,
+      "description": "Recognize the brute-force is O(n^2) nested loop and articulate why that's the baseline.",
+      "pattern_tags": ["complexity-analysis"]
+    },
+    {
+      "ordinal": 2,
+      "description": "Identify the bottleneck: for each element we re-scan the array to find its complement.",
+      "pattern_tags": ["bottleneck-spotting"]
+    },
+    {
+      "ordinal": 3,
+      "description": "Realize a hash map can answer 'have I seen target - x?' in O(1).",
+      "pattern_tags": ["hashing", "space-time-tradeoff"]
+    },
+    {
+      "ordinal": 4,
+      "description": "Decide on a single-pass approach: while iterating, check the map then insert.",
+      "pattern_tags": ["single-pass"]
+    },
+    {
+      "ordinal": 5,
+      "description": "Handle the duplicate-value edge case (e.g. nums=[3,3], target=6) and confirm single-pass still works.",
+      "pattern_tags": ["edge-cases"]
+    },
+    {
+      "ordinal": 6,
+      "description": "State final complexity: O(n) time, O(n) space.",
+      "pattern_tags": ["complexity-analysis"]
+    }
+  ]
+}
