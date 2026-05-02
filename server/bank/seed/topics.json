@@ -1,0 +1,20 @@
+[
+  {"slug": "arrays-hashing", "name": "Arrays & Hashing"},
+  {"slug": "two-pointers", "name": "Two Pointers"},
+  {"slug": "sliding-window", "name": "Sliding Window"},
+  {"slug": "stack", "name": "Stack"},
+  {"slug": "binary-search", "name": "Binary Search"},
+  {"slug": "linked-list", "name": "Linked List"},
+  {"slug": "trees", "name": "Trees"},
+  {"slug": "tries", "name": "Tries"},
+  {"slug": "heap-priority-queue", "name": "Heap / Priority Queue"},
+  {"slug": "backtracking", "name": "Backtracking"},
+  {"slug": "graphs", "name": "Graphs"},
+  {"slug": "advanced-graphs", "name": "Advanced Graphs"},
+  {"slug": "dp-1d", "name": "1-D Dynamic Programming"},
+  {"slug": "dp-2d", "name": "2-D Dynamic Programming"},
+  {"slug": "greedy", "name": "Greedy"},
+  {"slug": "intervals", "name": "Intervals"},
+  {"slug": "math-geometry", "name": "Math & Geometry"},
+  {"slug": "bit-manipulation", "name": "Bit Manipulation"}
+]
