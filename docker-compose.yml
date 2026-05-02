@@ -1,0 +1,33 @@
+services:
+  server:
+    build: ./server
+    container_name: whiteboard-server
+    ports:
+      - "8000:8000"
+    healthcheck:
+      # MCP streamable HTTP requires a session handshake, so probing /mcp
+      # directly returns 400 even when the server is healthy. We probe the
+      # listening TCP socket instead - good enough for compose ordering.
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost', 8000)); s.close()\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  web:
+    build: ./web
+    container_name: whiteboard-web
+    ports:
+      - "3000:3000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_COACH_MODEL=${CLAUDE_COACH_MODEL:-claude-opus-4-7}
+      - CLAUDE_AUX_MODEL=${CLAUDE_AUX_MODEL:-claude-haiku-4-5-20251001}
+      - MCP_SERVER_URL=http://server:8000/mcp
+    volumes:
+      # Bind-mount the coach DB so sessions and weakness profile survive restarts.
+      # Host path is gitignored (web/data/coach.db lives in the root .gitignore).
+      - ./web/data:/app/data
+    depends_on:
+      server:
+        condition: service_healthy

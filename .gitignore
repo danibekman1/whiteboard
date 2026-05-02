@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+
+# coach.db persists across restarts; the file + WAL sidecars stay out of git.
+web/data/coach.db
+web/data/coach.db-shm
+web/data/coach.db-wal
+
+# Env
+.env
+.env.local
+
+# Local planning artifacts
+docs/plans/
+
+# OS
+.DS_Store
+
+# LibreOffice lock files
+.~lock.*#
+
+# Playwright MCP screenshots/snapshots
+.playwright-mcp/
