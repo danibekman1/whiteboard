@@ -1,4 +1,9 @@
-"""Structured tool error builders. See design §8."""
+"""Structured tool error builders.
+
+Each helper returns a JSON-serializable dict with an `error` discriminator
+and per-variant fields. These cross the MCP boundary verbatim and are
+parsed by the web client by checking `result.error`.
+"""
 from __future__ import annotations
 from typing import Any
 

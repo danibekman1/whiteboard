@@ -12,9 +12,10 @@ out/
 dist/
 
 # coach.db persists across restarts; the file + WAL sidecars stay out of git.
-web/data/coach.db
-web/data/coach.db-shm
-web/data/coach.db-wal
+# Server owns the DB; volume-mounted in docker-compose at server/data.
+server/data/coach.db
+server/data/coach.db-shm
+server/data/coach.db-wal
 
 # Env
 .env

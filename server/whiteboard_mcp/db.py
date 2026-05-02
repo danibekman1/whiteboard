@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   id              TEXT PRIMARY KEY,
   question_id     INTEGER NOT NULL REFERENCES questions(id),
   started_at      TIMESTAMP DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  -- NULL until the first attempt is evaluated; updated by evaluate_attempt.
   current_step_id INTEGER REFERENCES steps(id)
 );
 

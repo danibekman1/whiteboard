@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from whiteboard_mcp.seed_loader import ingest_seeds, load_seed_dir
@@ -20,7 +21,7 @@ def test_load_seed_dir_finds_all_five():
 def test_ingest_seeds_writes_questions_and_steps(db):
     n_questions, n_steps = ingest_seeds(db, SEED_DIR)
     assert n_questions == 5
-    assert n_steps >= 25  # 6 + 6 + 5 + 6 + 6 = 29
+    assert n_steps == 29  # 6 + 6 + 5 + 6 + 6
     row = db.execute("SELECT * FROM questions WHERE slug='two-sum'").fetchone()
     assert row["title"] == "Two Sum"
     steps = db.execute(
@@ -28,10 +29,11 @@ def test_ingest_seeds_writes_questions_and_steps(db):
         (row["id"],),
     ).fetchall()
     assert steps[0]["ordinal"] == 1
-    assert (
-        "brute-force" in steps[0]["description"].lower()
-        or "nested" in steps[0]["description"].lower()
+    assert steps[0]["description"] == (
+        "Recognize the brute-force is O(n^2) nested loop and "
+        "articulate why that's the baseline."
     )
+    assert json.loads(steps[0]["pattern_tags"]) == ["complexity-analysis"]
 
 
 def test_ingest_seeds_is_idempotent(db):
