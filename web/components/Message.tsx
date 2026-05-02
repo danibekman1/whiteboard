@@ -1,15 +1,12 @@
+import { ChatBlock } from "@/lib/types"
 import { ToolCallPill } from "./ToolCallPill"
-
-export type Block =
-  | { kind: "text"; text: string }
-  | { kind: "tool_call"; id: string; name: string; input: any; result?: any }
 
 export function Message({
   role,
   blocks,
 }: {
   role: "user" | "assistant"
-  blocks: Block[]
+  blocks: ChatBlock[]
 }) {
   return (
     <div style={{ padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>

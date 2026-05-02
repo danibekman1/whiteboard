@@ -1,17 +1,14 @@
 "use client"
 import { useState } from "react"
 import { Composer } from "./Composer"
-import { Message, Block } from "./Message"
+import { Message } from "./Message"
+import { ChatBlock, WireMessage } from "@/lib/types"
 
-type ChatMessage = { role: "user" | "assistant"; blocks: Block[] }
-
-// Anthropic-format history is what the API expects; we keep both shapes side
-// by side: ChatMessage drives rendering, AMessage is the wire format.
-type AMessage = { role: "user" | "assistant"; content: any }
+type ChatMessage = { role: "user" | "assistant"; blocks: ChatBlock[] }
 
 export function Chat() {
   const [msgs, setMsgs] = useState<ChatMessage[]>([])
-  const [history, setHistory] = useState<AMessage[]>([])
+  const [history, setHistory] = useState<WireMessage[]>([])
   const [busy, setBusy] = useState(false)
 
   async function send(text: string) {
@@ -23,6 +20,8 @@ export function Chat() {
     }
     setMsgs((m) => [...m, userMsg, assistantMsg])
 
+    let assistantCollected: unknown = null
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -33,7 +32,6 @@ export function Chat() {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
-      let assistantCollected: any | null = null
 
       while (true) {
         const { value, done } = await reader.read()
@@ -49,16 +47,22 @@ export function Chat() {
           if (ev.type === "done") assistantCollected = ev.assistant
         }
       }
-      // Update Anthropic-format history for the next turn.
-      setHistory((h) => {
-        const next: AMessage[] = [...h, { role: "user", content: text }]
-        if (assistantCollected) next.push({ role: "assistant", content: assistantCollected })
-        return next
-      })
     } catch (err) {
       console.error(err)
     } finally {
       setBusy(false)
+    }
+
+    // Update history atomically: only push the user+assistant pair when we
+    // actually have an assistant turn to push. Half-updating (user only)
+    // would leave history ending in a user message and break alternation
+    // on the next turn.
+    if (assistantCollected) {
+      setHistory((h) => [
+        ...h,
+        { role: "user", content: text },
+        { role: "assistant", content: assistantCollected },
+      ])
     }
   }
 
@@ -79,21 +83,39 @@ export function Chat() {
   )
 }
 
-function applyEvent(msgs: ChatMessage[], ev: any): ChatMessage[] {
+// Pure reducer: produces a new ChatMessage array without mutating any block
+// reference from the input. Tested separately in __tests__/chat-reducer.test.ts.
+export function applyEvent(msgs: ChatMessage[], ev: any): ChatMessage[] {
   const last = msgs[msgs.length - 1]
   if (!last || last.role !== "assistant") return msgs
   const blocks = [...last.blocks]
+
   if (ev.type === "text") {
-    const tail = blocks[blocks.length - 1]
-    if (tail?.kind === "text") tail.text += ev.delta
-    else blocks.push({ kind: "text", text: ev.delta })
+    const tailIdx = blocks.length - 1
+    const tail = blocks[tailIdx]
+    if (tail?.kind === "text") {
+      // Replace the tail block with a fresh object instead of mutating
+      // the reference shared with the prior msgs[i].blocks[i].
+      blocks[tailIdx] = { kind: "text", text: tail.text + ev.delta }
+    } else {
+      blocks.push({ kind: "text", text: ev.delta })
+    }
   } else if (ev.type === "tool_call") {
-    blocks.push({ kind: "tool_call", id: ev.id, name: ev.name, input: ev.input })
+    blocks.push({
+      kind: "tool_call",
+      id: ev.id,
+      name: ev.name,
+      input: ev.input,
+    })
   } else if (ev.type === "tool_result") {
-    const target = blocks.find(
+    const targetIdx = blocks.findIndex(
       (b) => b.kind === "tool_call" && b.id === ev.tool_use_id,
-    ) as any
-    if (target) target.result = ev.result
+    )
+    if (targetIdx >= 0) {
+      const target = blocks[targetIdx] as Extract<ChatBlock, { kind: "tool_call" }>
+      blocks[targetIdx] = { ...target, result: ev.result }
+    }
   }
+
   return [...msgs.slice(0, -1), { ...last, blocks }]
 }

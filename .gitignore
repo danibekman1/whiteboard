@@ -32,3 +32,4 @@ docs/plans/
 
 # Playwright MCP screenshots/snapshots
 .playwright-mcp/
+web/tsconfig.tsbuildinfo

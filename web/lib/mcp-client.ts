@@ -20,11 +20,17 @@ export async function getToolCatalogue(): Promise<any[]> {
   const c = await getClient()
   const res = await c.listTools()
   // MCP -> Anthropic tool shape: rename inputSchema -> input_schema.
-  _toolCatalogue = res.tools.map((t: any) => ({
-    name: t.name,
-    description: t.description ?? "",
-    input_schema: t.inputSchema ?? { type: "object", properties: {} },
-  }))
+  // Description is omitted when MCP doesn't supply one - sending an empty
+  // string tells the model "this tool has been described and the description
+  // is empty," which can degrade tool selection.
+  _toolCatalogue = res.tools.map((t: any) => {
+    const tool: { name: string; description?: string; input_schema: unknown } = {
+      name: t.name,
+      input_schema: t.inputSchema ?? { type: "object", properties: {} },
+    }
+    if (t.description) tool.description = t.description
+    return tool
+  })
   return _toolCatalogue!
 }
 

@@ -4,10 +4,9 @@ import { anthropic, COACH_MODEL, MAX_ITERS } from "@/lib/anthropic"
 import { COACH_SYSTEM_PROMPT } from "@/lib/coach-prompt"
 import { callTool, getToolCatalogue } from "@/lib/mcp-client"
 import { sseStream } from "@/lib/sse"
+import { WireMessage } from "@/lib/types"
 
 export const runtime = "nodejs"
-
-type AMessage = { role: "user" | "assistant"; content: any }
 
 const ChatRequestSchema = z.object({
   message: z.string().min(1).max(4000),
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
   }
   const { message, history } = parsed.data
 
-  const messages: AMessage[] = [...history, { role: "user", content: message }]
+  const messages: WireMessage[] = [...history, { role: "user", content: message }]
   const stream = sseStream(runLoop(messages))
   return new Response(stream, {
     headers: {
@@ -45,15 +44,13 @@ export async function POST(req: NextRequest) {
   })
 }
 
-async function* runLoop(messages: AMessage[]): AsyncGenerator<any> {
+async function* runLoop(messages: WireMessage[]): AsyncGenerator<any> {
   const startedAt = Date.now()
   const tools = await getToolCatalogue()
   let totalToolCalls = 0
-  let totalIters = 0
+  let cleanExit = false
 
-  outer: for (let iter = 0; iter < MAX_ITERS; iter++) {
-    totalIters = iter + 1
-
+  for (let iter = 0; iter < MAX_ITERS; iter++) {
     const stream = anthropic.messages.stream({
       model: COACH_MODEL,
       system: COACH_SYSTEM_PROMPT,
@@ -89,7 +86,8 @@ async function* runLoop(messages: AMessage[]): AsyncGenerator<any> {
         // them to history for the next turn (preserves user/assistant alternation).
         assistant: collected,
       }
-      break outer
+      cleanExit = true
+      break
     }
 
     const results: any[] = []
@@ -114,7 +112,8 @@ async function* runLoop(messages: AMessage[]): AsyncGenerator<any> {
     messages.push({ role: "user", content: results })
   }
 
-  if (totalIters >= MAX_ITERS) {
+  // Only emit the cap error if we ran out of iterations without a clean done.
+  if (!cleanExit) {
     yield { type: "error", message: "max iterations exceeded" }
   }
 }
