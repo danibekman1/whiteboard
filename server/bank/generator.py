@@ -33,6 +33,10 @@ Requirements:
   with hyphens replaced by underscores (slug 'two-sum' -> 'two_sum').
   No imports unless strictly required. No I/O. Function takes positional
   args matching test_cases input lists.
+  For linked-list problems, use the class name `ListNode` directly
+  (already defined in the runner with attributes `val` and `next`).
+  For binary-tree problems, use `TreeNode` (with `val`, `left`, `right`).
+  Do NOT redefine these classes in your code.
 - canonical_solution.time/space: must match the optimal complexity given
   in the seed (notation like 'O(n)', 'O(n log n)', 'O(1)').
 - topics: list of kebab-case topic slugs. The FIRST entry MUST be the
@@ -43,6 +47,23 @@ Requirements:
 - test_cases: minimum 3, must include at least one edge case (empty,
   single element, duplicate values, target=0, etc.). Inputs are positional
   args to the function.
+
+  For linked lists, encode each list as
+      {"__linked_list__": [v1, v2, v3]}
+  meaning a chain v1->v2->v3. The empty list {"__linked_list__": []}
+  decodes to None (an empty head). Use this for both inputs and expecteds
+  whenever a ListNode is involved.
+
+  For binary trees, encode using LeetCode's BFS array notation:
+      {"__tree__": [1, 2, 3, null, 4]}
+  i.e. level-order with `null` for absent children. {"__tree__": []}
+  decodes to None. Use this for both inputs and expecteds whenever a
+  TreeNode is involved.
+
+  These markers are decoded into real ListNode/TreeNode instances before
+  your function is called, and the returned value is structurally
+  compared against the decoded expected. So your function should accept
+  and return the natural Node types, not the encoded dicts.
 - steps: 3-10 steps capturing the SOCRATIC reasoning a candidate should
   articulate at the whiteboard. Each step is a *thought* the candidate
   has, in order. NOT code. Pattern tags are short lowercase identifiers

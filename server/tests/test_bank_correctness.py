@@ -62,3 +62,77 @@ def test_set_equality_for_unordered_returns():
     cases = [TestCase(input=[[2, 7], 9], expected=[0, 1])]
     out = check(slug="two-sum", solution=sol, test_cases=cases)
     assert not out.all_passed  # strict equality - good signal of bad output
+
+
+def test_boolean_and_none_values_pass_through_runner():
+    """Regression: cases were embedded as Python source, so JSON True
+    became the undefined identifier `true`. They're now JSON-parsed at
+    runtime."""
+    sol = CanonicalSolution(
+        language="python",
+        code="def valid_anagram(s, t):\n    return sorted(s) == sorted(t)\n",
+        time="O(n log n)", space="O(1)",
+    )
+    cases = [
+        TestCase(input=["anagram", "nagaram"], expected=True),
+        TestCase(input=["rat", "car"], expected=False),
+        TestCase(input=["a", "a"], expected=True),
+    ]
+    out = check(slug="valid-anagram", solution=sol, test_cases=cases)
+    assert out.all_passed, out.failures
+
+
+def test_linked_list_marker_decodes_and_compares():
+    """reverse-linked-list-style: __linked_list__ markers decode to real
+    ListNode chains; canonical code uses ListNode by name."""
+    code = (
+        "def reverse_linked_list(head):\n"
+        "    prev = None\n"
+        "    curr = head\n"
+        "    while curr is not None:\n"
+        "        nxt = curr.next\n"
+        "        curr.next = prev\n"
+        "        prev = curr\n"
+        "        curr = nxt\n"
+        "    return prev\n"
+    )
+    sol = CanonicalSolution(language="python", code=code, time="O(n)", space="O(1)")
+    cases = [
+        TestCase(
+            input=[{"__linked_list__": [1, 2, 3, 4, 5]}],
+            expected={"__linked_list__": [5, 4, 3, 2, 1]},
+        ),
+        TestCase(
+            input=[{"__linked_list__": []}],
+            expected={"__linked_list__": []},
+        ),
+        TestCase(
+            input=[{"__linked_list__": [42]}],
+            expected={"__linked_list__": [42]},
+        ),
+    ]
+    out = check(slug="reverse-linked-list", solution=sol, test_cases=cases)
+    assert out.all_passed, out.failures
+
+
+def test_tree_marker_decodes_and_compares():
+    """invert-binary-tree-style: __tree__ markers in LeetCode BFS form."""
+    code = (
+        "def invert_binary_tree(root):\n"
+        "    if root is None: return None\n"
+        "    root.left, root.right = invert_binary_tree(root.right), invert_binary_tree(root.left)\n"
+        "    return root\n"
+    )
+    sol = CanonicalSolution(language="python", code=code, time="O(n)", space="O(n)")
+    cases = [
+        TestCase(
+            input=[{"__tree__": [4, 2, 7, 1, 3, 6, 9]}],
+            expected={"__tree__": [4, 7, 2, 9, 6, 3, 1]},
+        ),
+        TestCase(
+            input=[{"__tree__": []}],
+            expected={"__tree__": []},
+        ),
+    ]
+    out = check(slug="invert-binary-tree", solution=sol, test_cases=cases)
+    assert out.all_passed, out.failures
