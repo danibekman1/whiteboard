@@ -22,3 +22,14 @@ def evaluator_timeout() -> dict:
 
 def internal_error(message: str) -> dict:
     return {"error": "internal_error", "message": message}
+
+
+def invalid_level(got: Any, valid: list[int]) -> dict:
+    return {"error": "invalid_level", "got": got, "valid": valid}
+
+
+def no_current_step() -> dict:
+    return {
+        "error": "no_current_step",
+        "message": "session has no current step yet; user must attempt before requesting hints",
+    }
