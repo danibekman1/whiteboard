@@ -14,6 +14,7 @@ from whiteboard_mcp.db import connect, ensure_schema
 from whiteboard_mcp.seed_loader import ingest_seeds
 from whiteboard_mcp.tools.evaluate_attempt import evaluate_attempt as _evaluate_attempt
 from whiteboard_mcp.tools.get_next_question import get_next_question as _get_next_question
+from whiteboard_mcp.tools.get_hint import get_hint as _get_hint
 
 log = logging.getLogger(__name__)
 
@@ -74,6 +75,28 @@ def evaluate_attempt(session_id: str, user_text: str) -> dict:
     """
     with contextlib.closing(get_conn()) as conn:
         return _evaluate_attempt(conn, session_id=session_id, user_text=user_text)
+
+
+@mcp.tool()
+def get_hint(session_id: str, level: int) -> dict:
+    """Reveal a hint for the candidate's current step.
+
+    Levels:
+      1 - gentle nudge ('what's the naive approach?')
+      2 - directional ('two nested loops, what does that cost?')
+      3 - step-revealing ('nested loop is O(n^2)')
+
+    Use sparingly: prefer Socratic questions in your own response.
+    Escalate the level only if the candidate explicitly asks for more help
+    or has been visibly stuck for two turns. Returns
+      {level, text, step_ordinal}
+    or
+      {error: 'no_current_step'}      # session hasn't been evaluated yet
+      {error: 'invalid_level', ...}   # level not in {1,2,3}
+      {error: 'not_found', ...}       # unknown session_id
+    """
+    with contextlib.closing(get_conn()) as conn:
+        return _get_hint(conn, session_id=session_id, level=level)
 
 
 def main() -> None:
