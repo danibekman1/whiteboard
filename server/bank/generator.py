@@ -35,6 +35,11 @@ Requirements:
   args matching test_cases input lists.
 - canonical_solution.time/space: must match the optimal complexity given
   in the seed (notation like 'O(n)', 'O(n log n)', 'O(1)').
+- topics: list of kebab-case topic slugs. The FIRST entry MUST be the
+  exact 'primary topic' slug given in the seed, copied verbatim
+  (e.g. seed says 'arrays-hashing' -> first topic is 'arrays-hashing',
+  not 'arrays' or 'hashing' or 'hash-map'). You may add additional
+  related topics after, but keep the seed's slug first.
 - test_cases: minimum 3, must include at least one edge case (empty,
   single element, duplicate values, target=0, etc.). Inputs are positional
   args to the function.
