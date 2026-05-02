@@ -23,4 +23,13 @@ describe("COACH_SYSTEM_PROMPT", () => {
     expect(COACH_SYSTEM_PROMPT).toMatch(/reanchor/)
     expect(COACH_SYSTEM_PROMPT).toMatch(/wrap_up/)
   })
+  it("references the get_hint tool", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/get_hint/)
+  })
+  it("teaches the hint ladder discipline", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/level\s*1.*level\s*2.*level\s*3/is)
+  })
+  it("escalates only on explicit ask or repeated stuck turns", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/(stuck|asks|ask)/i)
+  })
 })
