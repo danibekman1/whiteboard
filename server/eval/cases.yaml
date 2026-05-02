@@ -1,0 +1,23 @@
+- name: two-sum-nails-step-1
+  question_slug: two-sum
+  user_text: "Brute force is two nested loops, that's O(n^2)."
+  expect:
+    step_ordinal: 1
+    correct: true
+    suggested_move: advance
+
+- name: two-sum-nails-step-3
+  question_slug: two-sum
+  user_text: "If I use a hash map I can check 'have I seen target minus x' in O(1)."
+  expect:
+    step_ordinal: 3
+    correct: true
+    # Either advance or nudge is acceptable depending on how the evaluator
+    # reads completeness. We'll start strict and relax if it fails.
+    suggested_move: advance
+
+- name: two-sum-off-topic
+  question_slug: two-sum
+  user_text: "What's the weather like in Tel Aviv?"
+  expect:
+    suggested_move: reanchor
