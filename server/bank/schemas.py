@@ -37,6 +37,9 @@ class CanonicalSolution(BaseModel):
 
 
 class TestCase(BaseModel):
+    # Pydantic class, not a pytest test class.
+    __test__ = False
+
     input: list  # function args, positional
     expected: object
 
