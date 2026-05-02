@@ -1,8 +1,14 @@
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import ValidationError
 
-from whiteboard_mcp.evaluator import EvaluatorOutput, evaluate
+from whiteboard_mcp.evaluator import (
+    EVALUATOR_TIMEOUT_S,
+    SYSTEM_PROMPT,
+    EvaluatorOutput,
+    evaluate,
+)
 
 
 def _fake_client(payload: dict):
@@ -19,7 +25,7 @@ def _fake_client(payload: dict):
 
 def test_evaluate_parses_forced_tool_use():
     fake = _fake_client({
-        "step_id": 3,
+        "step_ordinal": 3,
         "correct": True,
         "missing": [],
         "suggested_move": "advance",
@@ -31,9 +37,24 @@ def test_evaluate_parses_forced_tool_use():
         user_text="hash map gives O(1) lookup",
     )
     assert isinstance(out, EvaluatorOutput)
-    assert out.step_id == 3
+    assert out.step_ordinal == 3
     assert out.correct is True
     assert out.suggested_move == "advance"
+    assert out.missing == []
+
+
+def test_evaluate_returns_missing_items_when_present():
+    """The `missing` field must round-trip — regression: it was once dropped."""
+    fake = _fake_client({
+        "step_ordinal": 2,
+        "correct": False,
+        "missing": ["didn't mention the bottleneck", "no complexity claim"],
+        "suggested_move": "nudge",
+    })
+    out = evaluate(
+        client=fake, question_statement="Q", canonical_steps=[], user_text="x",
+    )
+    assert out.missing == ["didn't mention the bottleneck", "no complexity claim"]
 
 
 def test_evaluate_raises_on_missing_tool_use():
@@ -52,12 +73,12 @@ def test_evaluate_raises_on_missing_tool_use():
 
 def test_evaluate_raises_on_pydantic_validation_failure():
     fake = _fake_client({
-        "step_id": "not-an-int",
+        "step_ordinal": "not-an-int",
         "correct": True,
         "missing": [],
         "suggested_move": "nudge",
     })
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         evaluate(
             client=fake,
             question_statement="...",
@@ -66,10 +87,10 @@ def test_evaluate_raises_on_pydantic_validation_failure():
         )
 
 
-def test_evaluate_passes_canonical_steps_in_user_message():
-    """The evaluator must see the steps; this is what makes it the inner LLM."""
+def test_evaluate_passes_canonical_steps_with_ordinal_prefix():
+    """The evaluator must see ordinal-prefixed steps; LLM parses depend on the format."""
     fake = _fake_client({
-        "step_id": 1,
+        "step_ordinal": 1,
         "correct": True,
         "missing": [],
         "suggested_move": "advance",
@@ -85,15 +106,15 @@ def test_evaluate_passes_canonical_steps_in_user_message():
     )
     call_kwargs = fake.messages.create.call_args.kwargs
     user_content = call_kwargs["messages"][0]["content"]
-    assert "first step" in user_content
-    assert "second step" in user_content
     assert "<canonical_steps>" in user_content
+    assert "1. first step" in user_content
+    assert "2. second step" in user_content
 
 
 def test_evaluate_forces_submit_evaluation_tool():
     """Tool-choice must be forced; otherwise the model can ignore it."""
     fake = _fake_client({
-        "step_id": 1,
+        "step_ordinal": 1,
         "correct": True,
         "missing": [],
         "suggested_move": "advance",
@@ -108,3 +129,66 @@ def test_evaluate_forces_submit_evaluation_tool():
     assert call_kwargs["tool_choice"] == {"type": "tool", "name": "submit_evaluation"}
     tool_names = [t["name"] for t in call_kwargs["tools"]]
     assert "submit_evaluation" in tool_names
+
+
+def test_evaluate_includes_system_prompt_and_timeout():
+    """SYSTEM_PROMPT and timeout must be wired into the create() call."""
+    fake = _fake_client({
+        "step_ordinal": 1,
+        "correct": True,
+        "missing": [],
+        "suggested_move": "advance",
+    })
+    evaluate(
+        client=fake,
+        question_statement="Q",
+        canonical_steps=[],
+        user_text="hi",
+    )
+    call_kwargs = fake.messages.create.call_args.kwargs
+    assert call_kwargs["system"] == SYSTEM_PROMPT
+    assert call_kwargs["timeout"] == EVALUATOR_TIMEOUT_S
+
+
+def test_evaluate_uses_explicit_model_arg_over_env(monkeypatch):
+    """Explicit model arg wins over CLAUDE_COACH_MODEL env."""
+    monkeypatch.setenv("CLAUDE_COACH_MODEL", "from-env")
+    fake = _fake_client({
+        "step_ordinal": 1,
+        "correct": True,
+        "missing": [],
+        "suggested_move": "advance",
+    })
+    evaluate(
+        client=fake,
+        question_statement="Q",
+        canonical_steps=[],
+        user_text="hi",
+        model="explicit-model",
+    )
+    assert fake.messages.create.call_args.kwargs["model"] == "explicit-model"
+
+
+def test_evaluate_falls_back_to_env_model(monkeypatch):
+    monkeypatch.setenv("CLAUDE_COACH_MODEL", "env-model")
+    fake = _fake_client({
+        "step_ordinal": 1,
+        "correct": True,
+        "missing": [],
+        "suggested_move": "advance",
+    })
+    evaluate(
+        client=fake,
+        question_statement="Q",
+        canonical_steps=[],
+        user_text="hi",
+    )
+    assert fake.messages.create.call_args.kwargs["model"] == "env-model"
+
+
+def test_get_anthropic_client_fails_fast_on_missing_key(monkeypatch):
+    from whiteboard_mcp.evaluator import get_anthropic_client
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+        get_anthropic_client()

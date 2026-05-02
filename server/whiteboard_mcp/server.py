@@ -4,6 +4,7 @@ Streamable HTTP transport at /mcp. Ingests seed JSON at startup; tools
 come online once the DB is ready.
 """
 from __future__ import annotations
+import contextlib
 import logging
 from pathlib import Path
 
@@ -25,15 +26,18 @@ mcp = FastMCP("whiteboard-mcp")
 
 def _bootstrap() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = connect(DB_PATH)
-    ensure_schema(conn)
-    n_q, n_s = ingest_seeds(conn, SEED_DIR)
-    log.info("ingest complete: %d questions, %d steps", n_q, n_s)
-    conn.close()
+    with contextlib.closing(connect(DB_PATH)) as conn:
+        ensure_schema(conn)
+        n_q, n_s = ingest_seeds(conn, SEED_DIR)
+        log.info("ingest complete: %d questions, %d steps", n_q, n_s)
 
 
 def get_conn():
-    """Per-call connection (sqlite3 connections are not thread-safe)."""
+    """Per-call connection (sqlite3 connections are not thread-safe).
+
+    Callers must wrap in `contextlib.closing(...)` so the connection is
+    actually closed - sqlite3's own context manager only commits/rolls back.
+    """
     return connect(DB_PATH)
 
 
@@ -45,8 +49,11 @@ def get_next_question(slug: str | None = None) -> dict:
     Returns {session_id, question: {slug, title, statement, difficulty}}.
     Canonical reasoning steps are NOT returned - they stay server-side so
     you cannot leak them to the candidate.
+
+    Errors: {error: 'not_found', entity: 'question', ...} when slug is unknown
+    or the question bank is empty.
     """
-    with get_conn() as conn:
+    with contextlib.closing(get_conn()) as conn:
         return _get_next_question(conn, slug=slug)
 
 
@@ -56,13 +63,16 @@ def evaluate_attempt(session_id: str, user_text: str) -> dict:
 
     Runs the inner Opus evaluator against the question's canonical steps
     and the candidate's text. Returns:
-      {step_id: int, correct: bool, missing: list[str],
+      {step_ordinal: int, correct: bool, missing: list[str],
        suggested_move: 'nudge'|'advance'|'reanchor'|'wrap_up'}
 
-    On evaluator parse failure: {error: 'evaluator_parse_failed', raw: '...'}
-    On unknown session_id: {error: 'not_found', ...}
+    Errors:
+      {error: 'not_found', entity: 'session', ...}    - unknown session_id
+      {error: 'evaluator_parse_failed', raw: '...'}   - LLM produced no tool_use
+      {error: 'evaluator_timeout'}                    - inner LLM exceeded timeout
+      {error: 'internal_error', message: '...'}       - any other failure
     """
-    with get_conn() as conn:
+    with contextlib.closing(get_conn()) as conn:
         return _evaluate_attempt(conn, session_id=session_id, user_text=user_text)
 
 

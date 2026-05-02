@@ -49,4 +49,9 @@ def test_unknown_slug_returns_error(db):
 
 def test_empty_bank_returns_error(db):
     out = get_next_question(db)
-    assert out["error"] == "not_found"
+    assert out == {
+        "error": "not_found",
+        "entity": "question",
+        "by": "*",
+        "value": "(empty bank)",
+    }

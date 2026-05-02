@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import anthropic
+
 from whiteboard_mcp.evaluator import EvaluatorOutput
 from whiteboard_mcp.seed_loader import ingest_seeds
 from whiteboard_mcp.tools.evaluate_attempt import evaluate_attempt
@@ -19,12 +21,12 @@ def _start_two_sum_session(db) -> str:
 def test_evaluate_attempt_persists_and_returns_assessment(db):
     sid = _start_two_sum_session(db)
     fake_eval = EvaluatorOutput(
-        step_id=1, correct=True, missing=[], suggested_move="advance",
+        step_ordinal=1, correct=True, missing=[], suggested_move="advance",
     )
     with patch("whiteboard_mcp.tools.evaluate_attempt.evaluate", return_value=fake_eval), \
          patch("whiteboard_mcp.tools.evaluate_attempt.get_anthropic_client", return_value=MagicMock()):
         out = evaluate_attempt(db, session_id=sid, user_text="brute force is O(n^2)")
-    assert out["step_id"] == 1
+    assert out["step_ordinal"] == 1
     assert out["correct"] is True
     assert out["suggested_move"] == "advance"
     rows = db.execute(
@@ -32,13 +34,13 @@ def test_evaluate_attempt_persists_and_returns_assessment(db):
     ).fetchall()
     assert len(rows) == 1
     assert rows[0]["user_text"] == "brute force is O(n^2)"
-    assert json.loads(rows[0]["evaluator_json"])["step_id"] == 1
+    assert json.loads(rows[0]["evaluator_json"])["step_ordinal"] == 1
 
 
 def test_evaluate_attempt_increments_ordinal(db):
     sid = _start_two_sum_session(db)
     fake_eval = EvaluatorOutput(
-        step_id=1, correct=False, missing=["x"], suggested_move="nudge"
+        step_ordinal=1, correct=False, missing=["x"], suggested_move="nudge"
     )
     with patch("whiteboard_mcp.tools.evaluate_attempt.evaluate", return_value=fake_eval), \
          patch("whiteboard_mcp.tools.evaluate_attempt.get_anthropic_client", return_value=MagicMock()):
@@ -50,7 +52,9 @@ def test_evaluate_attempt_increments_ordinal(db):
 
 def test_evaluate_attempt_updates_current_step_id(db):
     sid = _start_two_sum_session(db)
-    fake_eval = EvaluatorOutput(step_id=3, correct=True, missing=[], suggested_move="advance")
+    fake_eval = EvaluatorOutput(
+        step_ordinal=3, correct=True, missing=[], suggested_move="advance"
+    )
     with patch("whiteboard_mcp.tools.evaluate_attempt.evaluate", return_value=fake_eval), \
          patch("whiteboard_mcp.tools.evaluate_attempt.get_anthropic_client", return_value=MagicMock()):
         evaluate_attempt(db, session_id=sid, user_text="hash map gives O(1)")
@@ -65,8 +69,12 @@ def test_evaluate_attempt_updates_current_step_id(db):
 
 def test_evaluate_attempt_unknown_session_returns_error(db):
     out = evaluate_attempt(db, session_id="nope", user_text="hi")
-    assert out["error"] == "not_found"
-    assert out["entity"] == "session"
+    assert out == {
+        "error": "not_found",
+        "entity": "session",
+        "by": "id",
+        "value": "nope",
+    }
 
 
 def test_evaluate_attempt_translates_evaluator_value_error(db):
@@ -80,6 +88,17 @@ def test_evaluate_attempt_translates_evaluator_value_error(db):
     assert "tool_use" in out["raw"]
 
 
+def test_evaluate_attempt_translates_anthropic_timeout(db):
+    sid = _start_two_sum_session(db)
+    timeout_err = anthropic.APITimeoutError(request=MagicMock())
+    with patch(
+        "whiteboard_mcp.tools.evaluate_attempt.evaluate",
+        side_effect=timeout_err,
+    ), patch("whiteboard_mcp.tools.evaluate_attempt.get_anthropic_client", return_value=MagicMock()):
+        out = evaluate_attempt(db, session_id=sid, user_text="hi")
+    assert out == {"error": "evaluator_timeout"}
+
+
 def test_evaluate_attempt_translates_unexpected_exception(db):
     sid = _start_two_sum_session(db)
     with patch(
@@ -89,3 +108,26 @@ def test_evaluate_attempt_translates_unexpected_exception(db):
         out = evaluate_attempt(db, session_id=sid, user_text="hi")
     assert out["error"] == "internal_error"
     assert "network down" in out["message"]
+
+
+def test_evaluate_attempt_handles_out_of_range_ordinal(db, caplog):
+    """When evaluator returns an ordinal that doesn't match any step row,
+    the attempt is still persisted but current_step_id is left unchanged
+    and a warning is logged."""
+    import logging
+
+    sid = _start_two_sum_session(db)
+    fake_eval = EvaluatorOutput(
+        step_ordinal=999, correct=True, missing=[], suggested_move="advance"
+    )
+    with patch("whiteboard_mcp.tools.evaluate_attempt.evaluate", return_value=fake_eval), \
+         patch("whiteboard_mcp.tools.evaluate_attempt.get_anthropic_client", return_value=MagicMock()):
+        with caplog.at_level(logging.WARNING, logger="whiteboard_mcp.tools.evaluate_attempt"):
+            out = evaluate_attempt(db, session_id=sid, user_text="x")
+
+    assert out["step_ordinal"] == 999
+    rows = db.execute("SELECT * FROM attempts WHERE session_id = ?", (sid,)).fetchall()
+    assert len(rows) == 1  # attempt persisted
+    sess = db.execute("SELECT current_step_id FROM sessions WHERE id = ?", (sid,)).fetchone()
+    assert sess["current_step_id"] is None  # unchanged
+    assert any("out-of-range step_ordinal" in rec.message for rec in caplog.records)

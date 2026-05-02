@@ -1,10 +1,20 @@
 """evaluate_attempt tool: runs the inner evaluator and persists the attempt."""
 from __future__ import annotations
 import json
+import logging
 import sqlite3
 
-from whiteboard_mcp.errors import evaluator_parse_failed, internal_error, not_found
+import anthropic
+
+from whiteboard_mcp.errors import (
+    evaluator_parse_failed,
+    evaluator_timeout,
+    internal_error,
+    not_found,
+)
 from whiteboard_mcp.evaluator import evaluate, get_anthropic_client
+
+log = logging.getLogger(__name__)
 
 
 def evaluate_attempt(
@@ -37,9 +47,16 @@ def evaluate_attempt(
             canonical_steps=canonical,
             user_text=user_text,
         )
+    except anthropic.APITimeoutError:
+        log.warning("evaluator timed out for session=%s", session_id)
+        return evaluator_timeout()
     except ValueError as e:
+        log.warning("evaluator parse failed for session=%s: %s", session_id, e)
         return evaluator_parse_failed(raw=str(e))
     except Exception as e:
+        # Log full traceback so the operator can diagnose; keep MCP response
+        # opaque so we don't leak internals to the outer agent.
+        log.exception("evaluator call failed for session=%s", session_id)
         return internal_error(message=f"evaluator call failed: {e!r}")
 
     payload = result.model_dump()
@@ -54,12 +71,18 @@ def evaluate_attempt(
     )
     step_row = conn.execute(
         "SELECT id FROM steps WHERE question_id = ? AND ordinal = ?",
-        (session["question_id"], payload["step_id"]),
+        (session["question_id"], payload["step_ordinal"]),
     ).fetchone()
     if step_row:
         conn.execute(
             "UPDATE sessions SET current_step_id = ? WHERE id = ?",
             (step_row["id"], session_id),
+        )
+    else:
+        log.warning(
+            "evaluator returned out-of-range step_ordinal=%d for question_id=%d (session=%s); "
+            "attempt persisted, current_step_id unchanged",
+            payload["step_ordinal"], session["question_id"], session_id,
         )
     conn.commit()
     return payload

@@ -12,11 +12,27 @@ import anthropic
 from pydantic import BaseModel, Field
 
 
+# 60s upper bound on the inner LLM call. Past this we surface
+# evaluator_timeout() rather than hanging the MCP request.
+EVALUATOR_TIMEOUT_S = 60.0
+
+
 class EvaluatorOutput(BaseModel):
-    step_id: int = Field(description="Ordinal of the step the user is currently working on.")
+    step_ordinal: int = Field(
+        description="1-based ordinal of the step (within the question) the user is currently working on."
+    )
     correct: bool = Field(description="Did the user nail this step?")
+    # default_factory=list is intentional: when correct=true the model
+    # legitimately omits this field, and we want [] not a validation error.
     missing: list[str] = Field(default_factory=list, description="What's missing if not correct.")
-    suggested_move: Literal["nudge", "advance", "reanchor", "wrap_up"]
+    suggested_move: Literal["nudge", "advance", "reanchor", "wrap_up"] = Field(
+        description=(
+            "nudge: candidate is on the right step but missing something. "
+            "advance: current step is complete; prompt the next. "
+            "reanchor: candidate went off-topic; redirect. "
+            "wrap_up: all steps cleared; summarize and end."
+        )
+    )
 
 
 SYSTEM_PROMPT = """You are an interview coach's structured evaluator.
@@ -26,9 +42,9 @@ You will receive:
 - The canonical sequence of reasoning steps the candidate should articulate.
 - The candidate's latest message.
 
-Your job: classify which step the candidate is currently working on, whether
-they nailed it, what's missing if not, and what move the outer coach should
-make next.
+Your job: classify which step the candidate is currently working on (by its
+ordinal), whether they nailed it, what's missing if not, and what move the
+outer coach should make next.
 
 Submit your assessment by calling the submit_evaluation tool. Do not respond
 in plain text.
@@ -64,7 +80,12 @@ def _build_user_message(
 
 
 def get_anthropic_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        # Fail fast at construction rather than producing a confusing
+        # 401 from Anthropic at request time.
+        raise RuntimeError("ANTHROPIC_API_KEY is not set")
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def evaluate(
@@ -76,7 +97,8 @@ def evaluate(
     model: str | None = None,
 ) -> EvaluatorOutput:
     """Run the inner evaluator. Raises ValueError if the model returned no
-    tool_use block; raises pydantic.ValidationError on malformed payloads.
+    tool_use block; raises pydantic.ValidationError on malformed payloads;
+    raises anthropic.APITimeoutError if the call exceeds EVALUATOR_TIMEOUT_S.
     The caller is responsible for translating these to MCP error dicts."""
     model = model or os.environ.get("CLAUDE_COACH_MODEL", "claude-opus-4-7")
     response = client.messages.create(
@@ -89,6 +111,7 @@ def evaluate(
             "role": "user",
             "content": _build_user_message(question_statement, canonical_steps, user_text),
         }],
+        timeout=EVALUATOR_TIMEOUT_S,
     )
     for block in response.content:
         if getattr(block, "type", None) == "tool_use" and block.name == "submit_evaluation":
