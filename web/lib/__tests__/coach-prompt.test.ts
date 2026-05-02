@@ -27,7 +27,9 @@ describe("COACH_SYSTEM_PROMPT", () => {
     expect(COACH_SYSTEM_PROMPT).toMatch(/get_hint/)
   })
   it("teaches the hint ladder discipline", () => {
-    expect(COACH_SYSTEM_PROMPT).toMatch(/level\s*1.*level\s*2.*level\s*3/is)
+    // [\s\S] = any char incl. newlines without needing the /s flag (which
+    // requires ES2018 target).
+    expect(COACH_SYSTEM_PROMPT).toMatch(/level\s*1[\s\S]*level\s*2[\s\S]*level\s*3/i)
   })
   it("escalates only on explicit ask or repeated stuck turns", () => {
     expect(COACH_SYSTEM_PROMPT).toMatch(/(stuck|asks|ask)/i)
