@@ -1,0 +1,51 @@
+{
+  "slug": "two-sum",
+  "title": "Two Sum",
+  "statement": "Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target.",
+  "difficulty": "easy",
+  "leetcode_id": 1,
+  "topics": ["arrays-hashing"],
+  "canonical_solution": {
+    "language": "python",
+    "code": "def two_sum(nums, target):\n    return [0, 0]\n",
+    "time": "O(n)",
+    "space": "O(n)"
+  },
+  "test_cases": [
+    {"input": [[2, 7, 11, 15], 9], "expected": [0, 1]},
+    {"input": [[3, 2, 4], 6], "expected": [1, 2]},
+    {"input": [[3, 3], 6], "expected": [0, 1]}
+  ],
+  "steps": [
+    {
+      "ordinal": 1,
+      "description": "Recognize brute-force is O(n^2) nested loop.",
+      "pattern_tags": ["complexity-analysis"],
+      "hints": [
+        {"level": 1, "text": "Simplest approach?"},
+        {"level": 2, "text": "Nested loops."},
+        {"level": 3, "text": "O(n^2)."}
+      ]
+    },
+    {
+      "ordinal": 2,
+      "description": "Identify the bottleneck of repeated complement scan.",
+      "pattern_tags": ["bottleneck"],
+      "hints": [
+        {"level": 1, "text": "What repeats?"},
+        {"level": 2, "text": "Scanning for target-x."},
+        {"level": 3, "text": "Eliminate inner scan."}
+      ]
+    },
+    {
+      "ordinal": 3,
+      "description": "Use a hash map for O(1) complement lookup.",
+      "pattern_tags": ["hashing"],
+      "hints": [
+        {"level": 1, "text": "O(1) lookup?"},
+        {"level": 2, "text": "Dict."},
+        {"level": 3, "text": "Map value -> index."}
+      ]
+    }
+  ]
+}

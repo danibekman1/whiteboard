@@ -1,0 +1,71 @@
+{
+  "slug": "two-sum",
+  "title": "Two Sum",
+  "statement": "Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target. You may assume there is exactly one solution. You may not use the same element twice.",
+  "difficulty": "easy",
+  "leetcode_id": 1,
+  "topics": ["arrays-hashing"],
+  "canonical_solution": {
+    "language": "python",
+    "code": "def two_sum(nums, target):\n    seen = {}\n    for i, x in enumerate(nums):\n        if target - x in seen:\n            return [seen[target - x], i]\n        seen[x] = i\n",
+    "time": "O(n)",
+    "space": "O(n)"
+  },
+  "test_cases": [
+    {"input": [[2, 7, 11, 15], 9], "expected": [0, 1]},
+    {"input": [[3, 2, 4], 6], "expected": [1, 2]},
+    {"input": [[3, 3], 6], "expected": [0, 1]}
+  ],
+  "steps": [
+    {
+      "ordinal": 1,
+      "description": "Recognize the brute-force is O(n^2) nested loop and articulate why that's the baseline.",
+      "pattern_tags": ["complexity-analysis"],
+      "hints": [
+        {"level": 1, "text": "What's the simplest approach you can think of?"},
+        {"level": 2, "text": "Two nested loops checking every pair - what does that cost?"},
+        {"level": 3, "text": "Nested loop is O(n^2). State that as your baseline."}
+      ]
+    },
+    {
+      "ordinal": 2,
+      "description": "Identify the bottleneck: for each element we re-scan the array to find its complement.",
+      "pattern_tags": ["bottleneck-spotting"],
+      "hints": [
+        {"level": 1, "text": "Where is the work being repeated?"},
+        {"level": 2, "text": "For each x, you're scanning the rest of the array for target-x."},
+        {"level": 3, "text": "The inner scan to find target-x is the bottleneck. Can you answer 'have I seen target-x?' faster?"}
+      ]
+    },
+    {
+      "ordinal": 3,
+      "description": "Realize a hash map can answer 'have I seen target - x?' in O(1).",
+      "pattern_tags": ["hashing"],
+      "hints": [
+        {"level": 1, "text": "What data structure gives O(1) lookup?"},
+        {"level": 2, "text": "A dict. Map value -> index as you iterate."},
+        {"level": 3, "text": "Use a dict mapping value -> index. Look up target-x in O(1)."}
+      ]
+    },
+    {
+      "ordinal": 4,
+      "description": "Decide on a single-pass approach: while iterating, check the map then insert.",
+      "pattern_tags": ["single-pass"],
+      "hints": [
+        {"level": 1, "text": "Do you need two passes?"},
+        {"level": 2, "text": "Check before inserting - one pass is enough."},
+        {"level": 3, "text": "For each (i, x): if target-x in map return [map[target-x], i]; else map[x]=i."}
+      ]
+    },
+    {
+      "ordinal": 5,
+      "description": "State final complexity: O(n) time, O(n) space.",
+      "pattern_tags": ["complexity-analysis"],
+      "hints": [
+        {"level": 1, "text": "What's the cost now?"},
+        {"level": 2, "text": "One pass with O(1) lookups - linear in n."},
+        {"level": 3, "text": "O(n) time, O(n) space (the dict)."}
+      ]
+    }
+  ]
+}

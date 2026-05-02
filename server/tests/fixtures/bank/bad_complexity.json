@@ -1,0 +1,51 @@
+{
+  "slug": "two-sum",
+  "title": "Two Sum",
+  "statement": "Given an array of integers nums and an integer target, return the indices of the two numbers that add up to target.",
+  "difficulty": "easy",
+  "leetcode_id": 1,
+  "topics": ["arrays-hashing"],
+  "canonical_solution": {
+    "language": "python",
+    "code": "def two_sum(nums, target):\n    for i in range(len(nums)):\n        for j in range(i+1, len(nums)):\n            if nums[i] + nums[j] == target:\n                return [i, j]\n",
+    "time": "O(n^2)",
+    "space": "O(1)"
+  },
+  "test_cases": [
+    {"input": [[2, 7, 11, 15], 9], "expected": [0, 1]},
+    {"input": [[3, 2, 4], 6], "expected": [1, 2]},
+    {"input": [[3, 3], 6], "expected": [0, 1]}
+  ],
+  "steps": [
+    {
+      "ordinal": 1,
+      "description": "Recognize the brute-force is O(n^2) nested loop and articulate why that's the baseline.",
+      "pattern_tags": ["complexity-analysis"],
+      "hints": [
+        {"level": 1, "text": "What's the simplest approach?"},
+        {"level": 2, "text": "Two nested loops?"},
+        {"level": 3, "text": "Nested loop is O(n^2)."}
+      ]
+    },
+    {
+      "ordinal": 2,
+      "description": "Identify the bottleneck: rescanning for the complement each iteration.",
+      "pattern_tags": ["bottleneck-spotting"],
+      "hints": [
+        {"level": 1, "text": "Where is the work repeated?"},
+        {"level": 2, "text": "Inner scan for target-x is wasted."},
+        {"level": 3, "text": "Eliminate the inner rescan."}
+      ]
+    },
+    {
+      "ordinal": 3,
+      "description": "Hashing gives O(1) lookup of complement.",
+      "pattern_tags": ["hashing"],
+      "hints": [
+        {"level": 1, "text": "Which structure has O(1) lookup?"},
+        {"level": 2, "text": "A dict from value to index."},
+        {"level": 3, "text": "Use a dict mapping value -> index."}
+      ]
+    }
+  ]
+}
