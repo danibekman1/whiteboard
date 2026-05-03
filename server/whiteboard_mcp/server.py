@@ -18,6 +18,7 @@ from whiteboard_mcp.tools.evaluate_attempt import evaluate_attempt as _evaluate_
 from whiteboard_mcp.tools.get_next_question import get_next_question as _get_next_question
 from whiteboard_mcp.tools.get_hint import get_hint as _get_hint
 from whiteboard_mcp.tools.record_outcome import record_outcome as _record_outcome
+from whiteboard_mcp.tools.get_weakness_profile import get_weakness_profile as _get_weakness_profile
 
 log = logging.getLogger(__name__)
 
@@ -134,6 +135,18 @@ def record_outcome(session_id: str, outcome: str, hints_used: list[dict]) -> dic
         return _record_outcome(
             conn, session_id=session_id, outcome=outcome, hints_used=hints_used,
         )
+
+
+@mcp.tool()
+def get_weakness_profile() -> dict:
+    """Return per-pattern miss rates across all completed sessions.
+
+    Returns {patterns: [{pattern_tag, miss_count, total_count, miss_rate}, ...]}
+    sorted by miss_rate desc. Useful context for picking a drill question or
+    framing your Socratic question (focus on the candidate's weakest pattern).
+    """
+    with contextlib.closing(get_conn()) as conn:
+        return _get_weakness_profile(conn)
 
 
 def main() -> None:
