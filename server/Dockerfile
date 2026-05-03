@@ -6,6 +6,10 @@ RUN pip install --no-cache-dir uv
 # Copy source first so editable install can locate the whiteboard_mcp package.
 COPY pyproject.toml ./
 COPY whiteboard_mcp ./whiteboard_mcp
+# bank/ is imported by whiteboard_mcp.server at boot (ingest_bank, seed JSONs).
+# bank/generated/ holds the 75 generated question files; bank/seed/ holds the
+# topic taxonomy + prereq DAG. Both are needed at runtime.
+COPY bank ./bank
 
 RUN uv pip install --system -e .
 
