@@ -34,4 +34,18 @@ describe("COACH_SYSTEM_PROMPT", () => {
   it("escalates only on explicit ask or repeated stuck turns", () => {
     expect(COACH_SYSTEM_PROMPT).toMatch(/(stuck|asks|ask)/i)
   })
+  it("references the record_outcome tool", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/record_outcome/)
+  })
+  it("ties wrap_up to a record_outcome call", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/wrap_up[\s\S]*record_outcome/i)
+  })
+  it("explains the outcome enum values", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/unaided/)
+    expect(COACH_SYSTEM_PROMPT).toMatch(/with_hints/)
+    expect(COACH_SYSTEM_PROMPT).toMatch(/partial/)
+  })
+  it("instructs partial outcome on user abandon", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/(abandon|leav|done|quit)[\s\S]*partial/i)
+  })
 })
