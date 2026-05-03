@@ -29,14 +29,23 @@ Requirements:
 
 - statement: clear, concise, LeetCode-style. Include I/O constraints, but
   avoid pasting LeetCode's exact wording.
-- canonical_solution.code: pure Python 3 function, named after the slug
-  with hyphens replaced by underscores (slug 'two-sum' -> 'two_sum').
-  No imports unless strictly required. No I/O. Function takes positional
-  args matching test_cases input lists.
+- canonical_solution.code: a TOP-LEVEL pure Python 3 function (def, not a
+  class method) named after the slug with hyphens replaced by underscores
+  (slug 'two-sum' -> 'two_sum'). Do NOT wrap the solution in a `Solution`
+  class or any other class - the runner looks up the function by name in
+  the module's globals and will fail with 'function_not_found' if it's a
+  method. No imports unless strictly required. No I/O. The function takes
+  positional args matching test_cases input lists.
   For linked-list problems, use the class name `ListNode` directly
   (already defined in the runner with attributes `val` and `next`).
   For binary-tree problems, use `TreeNode` (with `val`, `left`, `right`).
   Do NOT redefine these classes in your code.
+  For class-based problems (e.g., 'implement-trie-prefix-tree' where the
+  natural API is multiple methods on a stateful object), define the class
+  AND a top-level function with the slug-derived name that exercises the
+  class via the test_case inputs - the test_cases drive the top-level
+  function, so design that function's signature to accept a sequence of
+  (operation, args) pairs and return a sequence of results.
 - canonical_solution.time/space: must match the optimal complexity given
   in the seed (notation like 'O(n)', 'O(n log n)', 'O(1)').
 - topics: list of kebab-case topic slugs. The FIRST entry MUST be the
@@ -132,6 +141,14 @@ class GenerationFailed(Exception):
         super().__init__(f"{slug}: {len(attempt_errors)} attempts failed: {attempt_errors[-1]}")
 
 
+_NON_RETRYABLE = (
+    anthropic.AuthenticationError,
+    anthropic.PermissionDeniedError,
+    anthropic.BadRequestError,  # includes 'credit balance too low'
+    anthropic.NotFoundError,
+)
+
+
 def generate_with_retries(
     *,
     client: anthropic.Anthropic,
@@ -139,11 +156,17 @@ def generate_with_retries(
     max_attempts: int = 3,
     model: str | None = None,
 ) -> QuestionJSON:
+    """Retry on validation/parse failures; bail immediately on API auth /
+    billing / 4xx errors that cannot be fixed by re-prompting."""
     errors: list[str] = []
     note: str | None = None
     for attempt in range(max_attempts):
         try:
             return generate(client=client, seed=seed, model=model, extra_user_note=note)
+        except _NON_RETRYABLE:
+            # Re-raise so the orchestrator (CLI) can stop the whole run instead
+            # of burning more retries on every remaining seed.
+            raise
         except Exception as e:
             errors.append(f"attempt {attempt + 1}: {e}")
             note = (

@@ -116,3 +116,29 @@ def test_generate_with_retries_gives_up_after_max():
         )
     assert client.messages.create.call_count == 3
     assert len(ei.value.attempt_errors) == 3
+
+
+def test_generate_with_retries_bails_on_non_retryable_api_error():
+    """Auth / billing / bad-request errors must NOT be retried with feedback;
+    the orchestrator needs to stop the whole run, not burn more retries."""
+    import anthropic
+    client = MagicMock()
+    # Build a 400 with the same shape Anthropic raises (it requires response/body args).
+    response = MagicMock()
+    response.status_code = 400
+    err = anthropic.BadRequestError(
+        message="credit balance is too low",
+        response=response,
+        body={"error": {"message": "credit balance is too low"}},
+    )
+    client.messages.create.side_effect = err
+
+    from bank.generator import generate_with_retries
+    with pytest.raises(anthropic.BadRequestError):
+        generate_with_retries(
+            client=client,
+            seed=GenerationInput(slug="x", title="X", difficulty="easy", topic="t"),
+            max_attempts=3,
+        )
+    # Bailed after the first call - did not waste 2 more retries.
+    assert client.messages.create.call_count == 1

@@ -9,7 +9,7 @@
   {"slug": "longest-consecutive-sequence", "title": "Longest Consecutive Sequence", "difficulty": "medium", "topic": "arrays-hashing", "leetcode_id": 128},
 
   {"slug": "valid-palindrome", "title": "Valid Palindrome", "difficulty": "easy", "topic": "two-pointers", "leetcode_id": 125},
-  {"slug": "3sum", "title": "3Sum", "difficulty": "medium", "topic": "two-pointers", "leetcode_id": 15},
+  {"slug": "three-sum", "title": "3Sum", "difficulty": "medium", "topic": "two-pointers", "leetcode_id": 15},
   {"slug": "container-with-most-water", "title": "Container With Most Water", "difficulty": "medium", "topic": "two-pointers", "leetcode_id": 11},
 
   {"slug": "best-time-to-buy-and-sell-stock", "title": "Best Time to Buy and Sell Stock", "difficulty": "easy", "topic": "sliding-window", "leetcode_id": 121},

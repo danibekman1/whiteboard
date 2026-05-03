@@ -18,7 +18,12 @@ from pathlib import Path
 
 import anthropic
 
-from bank.generator import generate_with_retries, GenerationInput, GenerationFailed
+from bank.generator import (
+    generate_with_retries,
+    GenerationInput,
+    GenerationFailed,
+    _NON_RETRYABLE,
+)
 from bank.validator import validate_one
 from bank.schemas import QuestionJSON
 
@@ -95,6 +100,14 @@ def main() -> int:
             print(f"  FAIL after {len(e.attempt_errors)} attempts")
             failures.append((seed.slug, e.attempt_errors[-1]))
             continue
+        except _NON_RETRYABLE as e:
+            # Auth / billing / bad-request: every remaining seed will hit the
+            # same wall, so fail the whole run with a clear message instead of
+            # silently looping through 50 more seeds.
+            print(f"\nABORT: non-retryable API error: {type(e).__name__}: {str(e)[:200]}")
+            print("Fix the credential / billing issue and re-run; resumability "
+                  "will skip already-valid files.")
+            return 3
 
         out_path.write_text(json.dumps(q.model_dump(), indent=2))
 
