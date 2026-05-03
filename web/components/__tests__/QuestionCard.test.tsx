@@ -48,28 +48,39 @@ describe("QuestionCard", () => {
     expect(screen.getByTitle("revisit")).toBeInTheDocument()
   })
 
-  it("shows the right glyph per status", () => {
-    const { container, rerender } = render(
+  it.each([
+    ["unaided", "✓"],
+    ["with_hints", "◐"],
+    ["partial", "○"],
+    ["skipped", "✗"],
+    ["revisit_flagged", "☆"],
+    ["unsolved", "○"],
+    ["locked", "◌"],
+  ])("renders glyph %s for status %s", (status, glyph) => {
+    const { container } = render(
       <QuestionCard
         slug="x"
         title="X"
         difficulty="easy"
-        status="unaided"
+        status={status}
         starred={false}
         onStart={() => {}}
       />,
     )
-    expect(container.textContent).toContain("✓")
-    rerender(
+    expect(container.textContent).toContain(glyph)
+  })
+
+  it("falls back to ○ glyph for unknown status", () => {
+    const { container } = render(
       <QuestionCard
         slug="x"
         title="X"
         difficulty="easy"
-        status="with_hints"
+        status="something-new"
         starred={false}
         onStart={() => {}}
       />,
     )
-    expect(container.textContent).toContain("◐")
+    expect(container.textContent).toContain("○")
   })
 })

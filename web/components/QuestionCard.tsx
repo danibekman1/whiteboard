@@ -24,8 +24,10 @@ export function QuestionCard({
   onStart: (slug: string) => void
 }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={() => onStart(slug)}
+      aria-label={`Start ${title} (${difficulty}, ${status})`}
       style={{
         padding: "6px 8px",
         display: "flex",
@@ -33,12 +35,18 @@ export function QuestionCard({
         gap: 8,
         cursor: "pointer",
         borderBottom: "1px solid #f0f0f0",
+        border: "none",
+        background: "transparent",
+        width: "100%",
+        textAlign: "left",
+        font: "inherit",
+        color: "inherit",
       }}
     >
       <span style={{ width: 14, textAlign: "center" }}>{STATUS_GLYPH[status] ?? "○"}</span>
       <span style={{ flex: 1 }}>{title}</span>
       <span style={{ fontSize: 11, color: "#888", textTransform: "capitalize" }}>{difficulty}</span>
       {starred && <span title="revisit">☆</span>}
-    </div>
+    </button>
   )
 }

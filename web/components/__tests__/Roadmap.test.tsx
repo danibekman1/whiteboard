@@ -57,4 +57,27 @@ describe("layoutRoadmap", () => {
     const nodes = layoutRoadmap(FIXTURE.topics, FIXTURE.edges)
     expect(nodes.every((n) => n.type === "topic")).toBe(true)
   })
+
+  it("returns no nodes for an empty roadmap", () => {
+    expect(layoutRoadmap([], [])).toEqual([])
+  })
+
+  it("places a single isolated topic at depth 0", () => {
+    const nodes = layoutRoadmap(
+      [
+        {
+          slug: "lone",
+          name: "Lone",
+          status: "unlocked",
+          total: 1,
+          solved: 0,
+          mastered: 0,
+          prereqs: [],
+        },
+      ],
+      [],
+    )
+    expect(nodes).toHaveLength(1)
+    expect(nodes[0].position).toEqual({ x: 0, y: 0 })
+  })
 })

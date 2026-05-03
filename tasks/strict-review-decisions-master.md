@@ -46,3 +46,20 @@ spec: docs/plans/2026-05-03-whiteboard-v0.6-roadmap.md
 | 30 | LIKE substring on JSON column | style | recommend.py _question_with_pattern | LIKE %"tag"% on json-encoded pattern_tags | DEFER: parameter-bound (no SQLi); pattern_tag values are bank-controlled; revisit with json_each in v0.7 | 2026-05-03 |
 | 31 | N+1 select | style | tools/get_roadmap.py | per-topic SELECT name in loop | DEFER: 18 topics, trivial; fold into _topic_status query if revisited | 2026-05-03 |
 | 32 | focus_topic_slug not validated | style | recommend.py | unknown slug silently falls through | DEFER: not harmful; spec doesn't require explicit error | 2026-05-03 |
+
+## v0.6 web sub-phases E/F/G/H/I round (commits e6ed429..d2a85e9)
+
+| ID | Pattern | Skill | File:Line | Finding | Decision | Date |
+|----|---------|-------|-----------|---------|----------|------|
+| 33 | Accessibility (clickable div) | style | web/components/QuestionCard.tsx | non-interactive div with onClick, no keyboard support | FIX: changed to <button type="button"> with aria-label | 2026-05-03 |
+| 34 | Accessibility (missing aria) | style | web/components/Chat.tsx Leave button | no aria-label | FIX: added aria-label="Leave session and return to roadmap" + type=button | 2026-05-03 |
+| 35 | Missing useEffect dep | style | web/app/page.tsx | refresh referenced in [] dep array | FIX: wrap refresh in useCallback, add to dep array | 2026-05-03 |
+| 36 | Magic colors duplicated | style | Roadmap, ProgressDots, TopicDetail, page.tsx | hex literals duplicated across 4 files | FIX: extracted web/lib/status-colors.ts; all four import STATUS_COLORS / PROGRESS_DOT_COLORS / RECOMMENDATION_BG / RECOMMENDATION_FG | 2026-05-03 |
+| 37 | Spec deviation - hideAttribution | spec-compliance | web/components/Roadmap.tsx | spec line 1722 specifies proOptions={{hideAttribution:true}}; impl omits | DECIDE: KEEP omitted - per plan risk #7, removing the prop lets attribution show, which respects react-flow's MIT-licence terms for free-tier use. The plan said "recommend removing for v0.6 friends-only beta" so impl is correct; logging here so it isn't accidentally re-added | 2026-05-03 |
+| 38 | Test gap - QuestionCard glyphs | test-validation | web/components/__tests__/QuestionCard.test.tsx | only 2/7 statuses tested + no fallback | FIX: parametrized over all 7 + 1 unknown-fallback test | 2026-05-03 |
+| 39 | Test gap - Roadmap empty state | test-validation | web/components/__tests__/Roadmap.test.tsx | layoutRoadmap([],[]) and single-isolated-node untested | FIX: added 2 tests | 2026-05-03 |
+| 40 | Test gap - TopicDetail | test-validation | web/components/__tests__/TopicDetail.test.tsx (new) | component had no tests at all | FIX: 6 tests covering question filter, prereq filter (incl orphan slugs), recommendation absent/present, click routing, empty list | 2026-05-03 |
+| 41 | API default value | style | web/components/Chat.tsx { sessionId? } = {} | React optional-prop default | KEEP: React idiom dominates; CLAUDE.md rule targets data classes | 2026-05-03 |
+| 42 | Route tests absent | test-validation | api/roadmap/route.ts, api/start-question/route.ts | thin proxies untested | DEFER: same precedent as /api/chat untested; routes are thin proxies | 2026-05-03 |
+| 43 | Loose typing | style | app/page.tsx, start-question/route.ts | any[] for questions/recommendation/weakness | DEFER: payload shape may churn; revisit when stable | 2026-05-03 |
+| 44 | Coach prompt rule placement | spec-compliance | web/lib/coach-prompt.ts | spec drafted as rule 5; impl placed as rule 7 (5/6 already exist) | KEEP: preserving prior numbering is more correct than overwriting unrelated rules | 2026-05-03 |

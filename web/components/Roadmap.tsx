@@ -2,11 +2,12 @@
 import "reactflow/dist/style.css"
 import ReactFlow, { Background, Controls, Node, Edge, NodeProps, Position } from "reactflow"
 import { useMemo } from "react"
+import { STATUS_COLORS, type TopicStatus } from "@/lib/status-colors"
 
 export type Topic = {
   slug: string
   name: string
-  status: "mastered" | "in_progress" | "unlocked" | "locked"
+  status: TopicStatus
   total: number
   solved: number
   mastered: number
@@ -14,13 +15,6 @@ export type Topic = {
 }
 export type RoadmapEdge = { from: string; to: string }
 export type RoadmapData = { topics: Topic[]; edges: RoadmapEdge[] }
-
-const STATUS_COLORS: Record<Topic["status"], string> = {
-  mastered: "#16a34a",     // green
-  in_progress: "#eab308",  // amber
-  unlocked: "#3b82f6",     // blue
-  locked: "#9ca3af",       // gray
-}
 
 function TopicNode({ data, selected }: NodeProps<Topic & { selected: boolean }>) {
   const color = STATUS_COLORS[data.status]

@@ -111,8 +111,10 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
             ← Roadmap
           </a>
           <button
+            type="button"
             onClick={() => send("(I'm leaving this session)")}
             disabled={busy || ended}
+            aria-label="Leave session and return to roadmap"
             style={{ fontSize: 12, padding: "2px 8px" }}
           >
             Leave session

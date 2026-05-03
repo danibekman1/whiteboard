@@ -1,8 +1,9 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Roadmap, type RoadmapData } from "@/components/Roadmap"
 import { TopicDetail } from "@/components/TopicDetail"
+import { RECOMMENDATION_BG, RECOMMENDATION_FG } from "@/lib/status-colors"
 
 type Topic = RoadmapData["topics"][number]
 type RoadmapPayload = RoadmapData & {
@@ -16,17 +17,17 @@ export default function Home() {
   const [selected, setSelected] = useState<string | null>(null)
   const router = useRouter()
 
-  useEffect(() => {
-    refresh()
-  }, [])
-
-  async function refresh(focus?: string) {
+  const refresh = useCallback(async (focus?: string) => {
     const url = focus
       ? `/api/roadmap?focus_topic_slug=${encodeURIComponent(focus)}`
       : "/api/roadmap"
     const r = await fetch(url)
     setData(await r.json())
-  }
+  }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [refresh])
 
   function onSelectTopic(slug: string) {
     setSelected(slug)
@@ -75,14 +76,14 @@ export default function Home() {
                 style={{
                   marginTop: 16,
                   padding: 12,
-                  background: "#fef3c7",
+                  background: RECOMMENDATION_BG,
                   borderRadius: 6,
                 }}
               >
                 <div
                   style={{
                     fontSize: 11,
-                    color: "#92400e",
+                    color: RECOMMENDATION_FG,
                     textTransform: "uppercase",
                   }}
                 >

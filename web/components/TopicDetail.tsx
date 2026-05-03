@@ -1,6 +1,7 @@
 "use client"
 import { ProgressDots } from "./ProgressDots"
 import { QuestionCard } from "./QuestionCard"
+import { STATUS_COLORS, RECOMMENDATION_BG, RECOMMENDATION_FG } from "@/lib/status-colors"
 
 type Topic = {
   slug: string
@@ -77,7 +78,7 @@ export function TopicDetail({
                   width: 12,
                   height: 12,
                   borderRadius: 6,
-                  background: p.status === "mastered" ? "#16a34a" : "#d1d5db",
+                  background: p.status === "mastered" ? STATUS_COLORS.mastered : "#d1d5db",
                   marginRight: 8,
                   verticalAlign: "middle",
                 }}
@@ -90,12 +91,17 @@ export function TopicDetail({
 
       {recommendation && (
         <section
-          style={{ marginTop: 16, padding: 12, background: "#fef3c7", borderRadius: 6 }}
+          style={{
+            marginTop: 16,
+            padding: 12,
+            background: RECOMMENDATION_BG,
+            borderRadius: 6,
+          }}
         >
           <div
             style={{
               fontSize: 11,
-              color: "#92400e",
+              color: RECOMMENDATION_FG,
               textTransform: "uppercase",
               marginBottom: 4,
             }}
@@ -119,7 +125,7 @@ export function TopicDetail({
           <div
             style={{
               fontSize: 12,
-              color: "#92400e",
+              color: RECOMMENDATION_FG,
               fontStyle: "italic",
               marginTop: 4,
             }}
