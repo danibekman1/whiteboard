@@ -12,3 +12,23 @@
 | 8 | Boundary value gap | test-validation | server/tests/test_bank_ingest.py | Malformed JSON ingest path untested | FIX: add test for corrupt JSON file | 2026-05-03 |
 | 9 | Intentional absence untested | test-validation | server/tests/test_bank_ingest.py | Test doesn't verify topic_id=NULL when primary unknown | FIX: add assertion | 2026-05-03 |
 | 10 | Vestigial code | refactoring-safety | server/tests/fixtures/legacy_seeds/ | Legacy v0 seed JSONs kept but unused | FIX: delete them | 2026-05-03 |
+
+## v0.6 sub-phase A-C round (commits 04f56ca..34291b6)
+
+spec: docs/plans/2026-05-03-whiteboard-v0.6-roadmap.md
+
+| ID | Pattern | Skill | File:Line | Finding | Decision | Date |
+|----|---------|-------|-----------|---------|----------|------|
+| 11 | Error message clarity | style | server/whiteboard_mcp/topic_seed_loader.py | warn doesn't say which side is unknown | FIX: name missing slug ('topic'/'prereq') in message | 2026-05-03 |
+| 12 | Nullability + missing FK | style | server/whiteboard_mcp/db.py weakness_profile.last_seen_session | nullable + no FK | FIX: kept nullable for read-tool tests, added FK to sessions(id) + comment justifying | 2026-05-03 |
+| 13 | Missing cycle validation | style | server/whiteboard_mcp/topic_seed_loader.py ingest_topic_prereqs | spec said "no cycles enforced at app layer" but no enforcement | FIX: added _assert_acyclic topo-DFS, raises ValueError on cycle | 2026-05-03 |
+| 14 | Stale comment | style | server/whiteboard_mcp/db.py | comment partly outdated | FIX: tightened comment, annotated v0.5a / v0.6 inline | 2026-05-03 |
+| 15 | Boundary value gap | test-validation | server/tests/test_tool_record_outcome.py | three of five outcomes untested | FIX: parametrized test over VALID_OUTCOMES | 2026-05-03 |
+| 16 | Boundary value gap | test-validation | server/tests/test_tool_record_outcome.py | zero-attempts session untested | FIX: added test_record_outcome_zero_attempts_no_weakness_updates | 2026-05-03 |
+| 17 | Presence-only assertion | test-validation | server/tests/test_tool_record_outcome.py | ended_at format unverified | FIX: added regex match for ISO format | 2026-05-03 |
+| 18 | Boundary value gap | test-validation | server/tests/test_tool_record_outcome.py | out-of-range step_ordinal silently dropped, untested | FIX: added test pinning silent-drop behaviour | 2026-05-03 |
+| 19 | Two sources of truth | spec-compliance | record_outcome.py:13 + db.py:90-91 | VALID_OUTCOMES duplicated in Python tuple + CHECK string | FIX: moved VALID_OUTCOMES to db.py; CHECK constraint built from constant; record_outcome imports it | 2026-05-03 |
+| 20 | Spec wording vs behaviour | spec-compliance | record_outcome.py docstring | spec said "missed steps" but code bumps total for all attempted | FIX: tightened docstring to match code; spec wording will be revisited next round | 2026-05-03 |
+| 21 | Mock-only testing | test-validation | server/tests/test_tool_record_outcome.py | unit tests mock the evaluator | KEEP: same precedent as v0.5a #6, end-to-end smoke (Task 19) covers real path | 2026-05-03 |
+| 22 | New tool not yet wired into coach prompt | refactoring-safety | record_outcome MCP tool | coach prompt doesn't tell agent to call it | DEFER: scope-deferred to Task 11 by plan | 2026-05-03 |
+| 23 | New tool not yet wired into web | refactoring-safety | record_outcome / get_weakness_profile MCP tools | web client doesn't call them | DEFER: scope-deferred to Tasks 12-18 by plan | 2026-05-03 |

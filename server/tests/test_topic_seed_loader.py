@@ -64,4 +64,25 @@ def test_ingest_topic_prereqs_skips_unknown_with_warning(db, tmp_path, capsys):
     n = ingest_topic_prereqs(db, bad)
     assert n == 1  # only the valid one landed
     cap = capsys.readouterr()
-    assert "unknown topic" in (cap.out + cap.err).lower()
+    err = (cap.out + cap.err).lower()
+    assert "unknown topic" in err
+    assert "'nope'" in err  # message names the missing slug, not just the dict
+
+
+def test_ingest_topic_prereqs_rejects_cycle(db, tmp_path):
+    """A 2-cycle (a -> b -> a) is not blocked by the schema CHECK constraint
+    (which only catches self-loops). The loader must reject it explicitly."""
+    import pytest
+    seed = tmp_path / "topics.json"
+    seed.write_text(json.dumps([
+        {"slug": "a", "name": "A"},
+        {"slug": "b", "name": "B"},
+    ]))
+    ingest_topics(db, seed)
+    cyc = tmp_path / "cyc.json"
+    cyc.write_text(json.dumps([
+        {"topic": "b", "prereq": "a"},
+        {"topic": "a", "prereq": "b"},
+    ]))
+    with pytest.raises(ValueError, match="cycle detected"):
+        ingest_topic_prereqs(db, cyc)

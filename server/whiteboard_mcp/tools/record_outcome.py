@@ -1,14 +1,18 @@
 """record_outcome tool: marks session done, updates weakness_profile.
 
+For each pattern_tag attached to a step the user *attempted* in the session,
+total_count is bumped by 1; miss_count is bumped by 1 only if at least one
+attempt for that step was scored correct=False. Miss rate per tag is then
+miss_count/total_count.
+
 Idempotent: calling twice on the same session is a no-op for weakness counts
 (checked via sessions.ended_at - if already set, we skip the bump)."""
 from __future__ import annotations
 import json
 import sqlite3
 
+from whiteboard_mcp.db import VALID_OUTCOMES
 from whiteboard_mcp.errors import not_found, invalid_outcome
-
-VALID_OUTCOMES = ("unaided", "with_hints", "partial", "skipped", "revisit_flagged")
 
 
 def _attempted_steps(conn: sqlite3.Connection, session_id: str) -> dict[int, dict]:

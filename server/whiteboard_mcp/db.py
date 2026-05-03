@@ -3,6 +3,12 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+# Single source of truth for the session outcome enum. Used both in the
+# sessions.outcome CHECK constraint below and in record_outcome's input
+# validation. If you add an outcome, update only this tuple.
+VALID_OUTCOMES = ("unaided", "with_hints", "partial", "skipped", "revisit_flagged")
+_OUTCOME_CHECK = ",".join(f"'{v}'" for v in VALID_OUTCOMES)
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS questions (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,21 +81,23 @@ CREATE TABLE IF NOT EXISTS weakness_profile (
   pattern_tag        TEXT PRIMARY KEY,
   miss_count         INTEGER NOT NULL DEFAULT 0,
   total_count        INTEGER NOT NULL DEFAULT 0,
-  last_seen_session  TEXT
+  -- nullable to allow read-tool unit tests to insert rows without a session;
+  -- production writes (record_outcome) always populate it. FK guards against
+  -- orphaned session ids ageing into the table.
+  last_seen_session  TEXT REFERENCES sessions(id)
 );
 """
 
-# Columns added to existing tables in later versions. CREATE IF NOT EXISTS won't
+# Columns added to existing tables across versions. CREATE IF NOT EXISTS won't
 # apply these to an already-created table, so we run ALTER TABLE explicitly when
 # the column is missing. Idempotent: skips if column already present.
-_QUESTIONS_NEW_COLUMNS = [
+_QUESTIONS_NEW_COLUMNS = [  # v0.5a
     ("leetcode_id", "INTEGER"),
     ("topic_id",    "INTEGER REFERENCES topics(id)"),
 ]
 
-_SESSIONS_NEW_COLUMNS = [
-    ("outcome",         "TEXT CHECK (outcome IS NULL OR outcome IN "
-                        "('unaided','with_hints','partial','skipped','revisit_flagged'))"),
+_SESSIONS_NEW_COLUMNS = [  # v0.6
+    ("outcome",         f"TEXT CHECK (outcome IS NULL OR outcome IN ({_OUTCOME_CHECK}))"),
     ("ended_at",        "TIMESTAMP"),
     ("hints_used_json", "TEXT"),
 ]

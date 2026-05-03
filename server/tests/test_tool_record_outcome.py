@@ -1,9 +1,11 @@
 import json
+import re
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
 
+from whiteboard_mcp.db import VALID_OUTCOMES
 from whiteboard_mcp.topic_seed_loader import ingest_topics, ingest_topic_prereqs
 from bank.ingest import ingest_bank
 from whiteboard_mcp.tools.get_next_question import get_next_question
@@ -122,3 +124,54 @@ def test_record_outcome_idempotent_does_not_double_bump(db, tmp_path):
         "SELECT miss_count, total_count FROM weakness_profile WHERE pattern_tag='complexity-analysis'"
     ).fetchone()
     assert row["miss_count"] == 1 and row["total_count"] == 1  # NOT 2/2
+
+
+@pytest.mark.parametrize("outcome", VALID_OUTCOMES)
+def test_record_outcome_accepts_every_valid_outcome(db, tmp_path, outcome):
+    """Pin Python tuple ↔ SQLite CHECK constraint in lockstep across all outcomes."""
+    _bootstrap(db, tmp_path)
+    sid = get_next_question(db, slug="two-sum")["session_id"]
+    _attempt(db, sid, 1, True)
+    out = record_outcome(db, session_id=sid, outcome=outcome, hints_used=[])
+    assert out["ok"] is True
+    row = db.execute("SELECT outcome FROM sessions WHERE id=?", (sid,)).fetchone()
+    assert row["outcome"] == outcome
+
+
+def test_record_outcome_zero_attempts_no_weakness_updates(db, tmp_path):
+    """A skipped session with no attempts: outcome is recorded, weakness untouched."""
+    _bootstrap(db, tmp_path)
+    sid = get_next_question(db, slug="two-sum")["session_id"]
+    out = record_outcome(db, session_id=sid, outcome="skipped", hints_used=[])
+    assert out["ok"] is True
+    assert out["weakness_updates"] == []
+    n = db.execute("SELECT COUNT(*) AS c FROM weakness_profile").fetchone()["c"]
+    assert n == 0
+
+
+def test_record_outcome_writes_iso_timestamp(db, tmp_path):
+    """ended_at is the strftime('%Y-%m-%dT%H:%M:%fZ','now') format, not a literal."""
+    _bootstrap(db, tmp_path)
+    sid = get_next_question(db, slug="two-sum")["session_id"]
+    _attempt(db, sid, 1, True)
+    record_outcome(db, session_id=sid, outcome="unaided", hints_used=[])
+    row = db.execute("SELECT ended_at FROM sessions WHERE id=?", (sid,)).fetchone()
+    # Format: 2026-05-03T16:25:00.123Z
+    assert re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$", row["ended_at"])
+
+
+def test_record_outcome_silently_drops_out_of_range_step_ordinal(db, tmp_path):
+    """If evaluate_attempt persisted an attempt with a step_ordinal that doesn't
+    exist in the steps table, record_outcome should still succeed (no crash) and
+    just skip that attempt's pattern_tags. Documents the silent-drop behaviour."""
+    _bootstrap(db, tmp_path)
+    sid = get_next_question(db, slug="two-sum")["session_id"]
+    # Inject a bogus attempt with step_ordinal=99 (out of range).
+    bogus = json.dumps({"step_ordinal": 99, "correct": False, "missing": ["x"], "suggested_move": "nudge"})
+    db.execute(
+        "INSERT INTO attempts (session_id, ordinal, user_text, evaluator_json) VALUES (?, ?, ?, ?)",
+        (sid, 1, "...", bogus),
+    )
+    out = record_outcome(db, session_id=sid, outcome="partial", hints_used=[])
+    assert out["ok"] is True
+    assert out["weakness_updates"] == []  # bogus ordinal -> no tags found
