@@ -12,7 +12,7 @@ from pathlib import Path
 from fastmcp import FastMCP
 
 from whiteboard_mcp.db import connect, ensure_schema
-from whiteboard_mcp.topic_seed_loader import ingest_topics
+from whiteboard_mcp.topic_seed_loader import ingest_topics, ingest_topic_prereqs
 from bank.ingest import ingest_bank
 from whiteboard_mcp.tools.evaluate_attempt import evaluate_attempt as _evaluate_attempt
 from whiteboard_mcp.tools.get_next_question import get_next_question as _get_next_question
@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "coach.db"
 TOPICS_SEED = ROOT / "bank" / "seed" / "topics.json"
+PREREQS_SEED = ROOT / "bank" / "seed" / "topic_prereqs.json"
 BANK_DIR = ROOT / "bank" / "generated"
 
 mcp = FastMCP("whiteboard-mcp")
@@ -33,8 +34,9 @@ def _bootstrap() -> None:
     with contextlib.closing(connect(DB_PATH)) as conn:
         ensure_schema(conn)
         n_t = ingest_topics(conn, TOPICS_SEED)
+        n_e = ingest_topic_prereqs(conn, PREREQS_SEED)
         n_q = ingest_bank(conn, BANK_DIR) if BANK_DIR.exists() else 0
-        log.info("boot: %d topics, %d questions ingested", n_t, n_q)
+        log.info("boot: %d topics, %d prereqs, %d questions ingested", n_t, n_e, n_q)
         if n_q == 0:
             log.warning(
                 "bank/generated/ is empty - run `python -m bank.generate` to populate"
