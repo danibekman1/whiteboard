@@ -70,11 +70,15 @@
     correct: true
     suggested_move: advance
 
-- name: valid-parentheses-stack-empty-on-close
+- name: valid-parentheses-partial-edge-cases-nudged
   question_slug: valid-parentheses
   user_text: "If a closer comes when the stack is empty, that's automatically invalid."
+  # The user covers only ONE invalid pattern (closer-on-empty); the other
+  # (leftover openers at end) is also required for full edge-case handling.
+  # A correct evaluator nudges for completeness rather than green-lighting.
   expect:
-    correct: true
+    correct: false
+    suggested_move: nudge
 
 - name: house-robber-recurrence
   question_slug: house-robber
