@@ -19,6 +19,7 @@ from whiteboard_mcp.tools.get_next_question import get_next_question as _get_nex
 from whiteboard_mcp.tools.get_hint import get_hint as _get_hint
 from whiteboard_mcp.tools.record_outcome import record_outcome as _record_outcome
 from whiteboard_mcp.tools.get_weakness_profile import get_weakness_profile as _get_weakness_profile
+from whiteboard_mcp.tools.get_roadmap import get_roadmap as _get_roadmap
 
 log = logging.getLogger(__name__)
 
@@ -147,6 +148,26 @@ def get_weakness_profile() -> dict:
     """
     with contextlib.closing(get_conn()) as conn:
         return _get_weakness_profile(conn)
+
+
+@mcp.tool()
+def get_roadmap(focus_topic_slug: str | None = None) -> dict:
+    """Return the topic DAG with per-topic progress, per-question status,
+    a recommended-next pick, and the top weak patterns.
+
+    Pass focus_topic_slug to bias the recommendation toward that topic.
+    """
+    with contextlib.closing(get_conn()) as conn:
+        return _get_roadmap(conn, focus_topic_slug=focus_topic_slug)
+
+
+@mcp.resource("roadmap://state")
+def roadmap_state_resource() -> dict:
+    """Roadmap state, exposed as a readable MCP resource. Same payload as
+    get_roadmap() with no focus topic. Reading once at the start of a session
+    lets the outer coach orient (which topics are unlocked, what's weak)."""
+    with contextlib.closing(get_conn()) as conn:
+        return _get_roadmap(conn, focus_topic_slug=None)
 
 
 def main() -> None:
