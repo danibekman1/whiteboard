@@ -1,15 +1,39 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Composer } from "./Composer"
 import { Message } from "./Message"
 import { ChatBlock, WireMessage } from "@/lib/types"
 
 type ChatMessage = { role: "user" | "assistant"; blocks: ChatBlock[] }
 
-export function Chat() {
+export function Chat({ sessionId }: { sessionId?: string } = {}) {
   const [msgs, setMsgs] = useState<ChatMessage[]>([])
   const [history, setHistory] = useState<WireMessage[]>([])
   const [busy, setBusy] = useState(false)
+  // Guard against React Strict Mode double-invocation: only seed once per
+  // mounted component instance, even though the effect fires twice in dev.
+  const seededRef = useRef(false)
+
+  useEffect(() => {
+    if (!sessionId || seededRef.current) return
+    seededRef.current = true
+    // Seed history (not msgs) with a primer pair so the next real user turn
+    // arrives with context: the agent sees a fake "continue session X" user
+    // turn and a fake assistant ack, then the user's actual message. The
+    // coach prompt instructs the agent to call evaluate_attempt with that
+    // session_id. We don't display the fake user msg in the UI; we do show
+    // the assistant ack as the chat opener.
+    setHistory([
+      { role: "user", content: `(Continue whiteboard session ${sessionId} - call evaluate_attempt with this session_id when I respond next.)` },
+      { role: "assistant", content: [{ type: "text", text: "Picking up where you left off. Walk me through your latest thought." }] },
+    ])
+    setMsgs([
+      {
+        role: "assistant",
+        blocks: [{ kind: "text", text: "Picking up where you left off. Walk me through your latest thought." }],
+      },
+    ])
+  }, [sessionId])
 
   async function send(text: string) {
     setBusy(true)
