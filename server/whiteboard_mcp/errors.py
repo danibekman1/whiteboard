@@ -33,3 +33,7 @@ def no_current_step() -> dict:
         "error": "no_current_step",
         "message": "session has no current step yet; user must attempt before requesting hints",
     }
+
+
+def invalid_outcome(got: Any, valid: list[str]) -> dict:
+    return {"error": "invalid_outcome", "got": got, "valid": valid}
