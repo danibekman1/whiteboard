@@ -1,4 +1,4 @@
-"""Golden-case eval for the inner evaluator.
+"""Golden-case eval for the inner evaluator (production / SDK path).
 
 For each case: load the canonical steps for the question (from the bank
 ingested into a fresh in-memory DB), run the inner evaluator over the
@@ -9,6 +9,13 @@ evaluator, not the outer coach.
 Requires:
 - ANTHROPIC_API_KEY set (the inner evaluator goes through the SDK)
 - bank/generated/ populated (run `python -m bank.generate` first)
+
+Dev fallback (no API credits): the eval can also be run by an
+orchestrating Claude Code session dispatching one sub-agent per case via
+the prompt template at `eval/agent-evaluator-prompt.md`, billed against
+the developer's Claude Code subscription. That path uses free-form JSON
+output (not forced tool-use), so it's a sanity-check proxy, not a
+validation of the production evaluator's tool-use plumbing.
 """
 from __future__ import annotations
 import os

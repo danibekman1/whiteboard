@@ -91,8 +91,25 @@ cd web    && npm test                   # 19 tests
 
 ## Pedagogy eval (real Opus calls, ~$1-2)
 
+Production / SDK path (gold-standard signal):
+
 ```
 cd server && uv run --extra dev python -m eval.run_eval
 ```
 
 Requires `ANTHROPIC_API_KEY` set and `bank/generated/` populated.
+
+### Dev fallback when API credits aren't available
+
+Same pattern as the bank generator's dev fallback. Per-case sub-agent
+prompt template lives at `server/eval/agent-evaluator-prompt.md`. Open
+Claude Code in the repo root and ask:
+
+> "Run the pedagogy eval using `server/eval/agent-evaluator-prompt.md`,
+> one sub-agent per case in `server/eval/cases.yaml`. Compare each
+> sub-agent's JSON output against the case's `expect:` fields and
+> report PASS/FAIL per case + overall pass rate."
+
+This is a useful sanity-check proxy (case shape + canonical-step
+quality) but does NOT validate the production evaluator's
+forced-tool-use plumbing — for that, you still need the SDK path.
