@@ -1,3 +1,14 @@
+# Golden cases for the inner evaluator.
+#
+# Each case: a (question, simulated user_text, expected evaluator output) triple.
+# Coverage of evaluator BEHAVIOR (correct/advance/nudge/reanchor across topics
+# and difficulties), not coverage of the bank.
+#
+# Step-ordinal assertions are deliberately loose for cases where the
+# bank-generated steps may decompose the same insight differently from one
+# Opus run to the next; in those cases we assert correct + suggested_move
+# only.
+
 - name: two-sum-nails-step-1
   question_slug: two-sum
   user_text: "Brute force is two nested loops, that's O(n^2)."
@@ -10,10 +21,7 @@
   question_slug: two-sum
   user_text: "If I use a hash map I can check 'have I seen target minus x' in O(1)."
   expect:
-    step_ordinal: 3
     correct: true
-    # Either advance or nudge is acceptable depending on how the evaluator
-    # reads completeness. We'll start strict and relax if it fails.
     suggested_move: advance
 
 - name: two-sum-off-topic
@@ -21,3 +29,55 @@
   user_text: "What's the weather like in Tel Aviv?"
   expect:
     suggested_move: reanchor
+
+- name: valid-anagram-frequency-counts
+  question_slug: valid-anagram
+  user_text: "I'd compare frequency counts of each character - they must match."
+  expect:
+    correct: true
+    suggested_move: advance
+
+- name: contains-duplicate-hashing-jump
+  question_slug: contains-duplicate
+  user_text: "Use a hash set, return true the moment we see a value already in the set."
+  expect:
+    correct: true
+    suggested_move: advance
+
+- name: binary-search-off-by-one-confusion
+  question_slug: binary-search
+  user_text: "Set lo = 0, hi = len(arr), then while lo < hi do mid = (lo + hi) / 2."
+  expect:
+    correct: false
+    suggested_move: nudge
+
+- name: reverse-linked-list-three-pointer
+  question_slug: reverse-linked-list
+  user_text: "Track prev, curr, and next; on each step rewire curr.next to prev then advance both."
+  expect:
+    correct: true
+
+- name: climbing-stairs-recurrence
+  question_slug: climbing-stairs
+  user_text: "ways(n) = ways(n-1) + ways(n-2). It's basically Fibonacci."
+  expect:
+    correct: true
+
+- name: best-time-buy-sell-stock-greedy
+  question_slug: best-time-to-buy-and-sell-stock
+  user_text: "Track min so far and best profit so far in one pass."
+  expect:
+    correct: true
+    suggested_move: advance
+
+- name: valid-parentheses-stack-empty-on-close
+  question_slug: valid-parentheses
+  user_text: "If a closer comes when the stack is empty, that's automatically invalid."
+  expect:
+    correct: true
+
+- name: house-robber-recurrence
+  question_slug: house-robber
+  user_text: "rob(i) = max(rob(i-2) + nums[i], rob(i-1)). Either we take this house or skip it."
+  expect:
+    correct: true
