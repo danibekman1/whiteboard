@@ -10,6 +10,7 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
   const [msgs, setMsgs] = useState<ChatMessage[]>([])
   const [history, setHistory] = useState<WireMessage[]>([])
   const [busy, setBusy] = useState(false)
+  const [ended, setEnded] = useState(false)
   // Guard against React Strict Mode double-invocation: only seed once per
   // mounted component instance, even though the effect fires twice in dev.
   const seededRef = useRef(false)
@@ -69,6 +70,10 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
           const ev = JSON.parse(chunk.slice(5).trim())
           setMsgs((m) => applyEvent(m, ev))
           if (ev.type === "done") assistantCollected = ev.assistant
+          // Detect record_outcome tool calls -> session ended.
+          if (ev.type === "tool_call" && ev.name === "record_outcome") {
+            setEnded(true)
+          }
         }
       }
     } catch (err) {
@@ -92,6 +97,28 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      {sessionId && (
+        <div
+          style={{
+            padding: 8,
+            borderBottom: "1px solid #e5e7eb",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <a href="/" style={{ fontSize: 12 }}>
+            ← Roadmap
+          </a>
+          <button
+            onClick={() => send("(I'm leaving this session)")}
+            disabled={busy || ended}
+            style={{ fontSize: 12, padding: "2px 8px" }}
+          >
+            Leave session
+          </button>
+        </div>
+      )}
       <div style={{ flex: 1, overflow: "auto" }}>
         {msgs.length === 0 && (
           <div style={{ padding: 24, color: "#666" }}>
@@ -102,7 +129,19 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
           <Message key={i} role={m.role} blocks={m.blocks} />
         ))}
       </div>
-      <Composer onSend={send} busy={busy} />
+      {ended && (
+        <div
+          style={{
+            padding: 8,
+            background: "#dcfce7",
+            textAlign: "center",
+            fontSize: 13,
+          }}
+        >
+          Session complete. <a href="/">Back to roadmap →</a>
+        </div>
+      )}
+      <Composer onSend={send} busy={busy || ended} />
     </div>
   )
 }
