@@ -168,8 +168,27 @@ def recommend_next(
 
     # 1. Focus topic
     if focus_topic_slug:
+        focus_status = status.get(focus_topic_slug, {"total": 0, "solved": 0, "mastered": 0})
         q = _easiest_unsolved_in_topic(conn, focus_topic_slug)
         if q:
+            # If user is starting fresh in this topic and any prereq was mastered,
+            # frame the recommendation as "you nailed {prereq}".
+            if focus_status["solved"] == 0:
+                mastered_prereqs = [
+                    p for p in prereqs.get(focus_topic_slug, [])
+                    if _is_mastered(status.get(p, {"total": 0, "solved": 0, "mastered": 0}))
+                ]
+                if mastered_prereqs:
+                    p = mastered_prereqs[0]
+                    p_stat = status[p]
+                    return Recommendation(
+                        question_slug=q["slug"], topic_slug=focus_topic_slug,
+                        difficulty=q["difficulty"],
+                        justification=(
+                            f"start {focus_topic_slug} - you nailed {p} "
+                            f"({p_stat['mastered']}/{p_stat['total']})"
+                        ),
+                    )
             return Recommendation(
                 question_slug=q["slug"], topic_slug=focus_topic_slug, difficulty=q["difficulty"],
                 justification=f"continue {focus_topic_slug} - easiest unsolved here",
@@ -214,6 +233,25 @@ def recommend_next(
                     ),
                 )
 
+    # 4. Difficulty step-up - in-progress topic with all easies cleared, suggest a medium.
+    # Sorted by slug for determinism. Skips topics already fully mastered (per spec, those
+    # would have been satisfied by strategy 3 or be done).
+    for topic in sorted(status.keys()):
+        s = status[topic]
+        if s["total"] == 0 or s["solved"] == 0 or _is_mastered(s):
+            continue
+        # Check if every easy question in this topic is solved.
+        unsolved_easy = _easiest_unsolved_in_topic(conn, topic)
+        if unsolved_easy and unsolved_easy["difficulty"] == "easy":
+            continue  # there's still an easy left
+        # All easies cleared; pick the easiest medium (or harder).
+        q = _easiest_unsolved_in_topic(conn, topic, min_difficulty="medium")
+        if q:
+            return Recommendation(
+                question_slug=q["slug"], topic_slug=topic, difficulty=q["difficulty"],
+                justification=f"you've cleared all easy in {topic} - try this medium",
+            )
+
     # 5. Fresh start (or fallback)
     for topic, s in status.items():
         if s["total"] == 0:
@@ -226,4 +264,5 @@ def recommend_next(
                     justification=f"begin here - {topic} has no prereqs",
                 )
 
+    # 6. Nothing left
     return None

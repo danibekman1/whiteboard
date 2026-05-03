@@ -32,3 +32,17 @@ spec: docs/plans/2026-05-03-whiteboard-v0.6-roadmap.md
 | 21 | Mock-only testing | test-validation | server/tests/test_tool_record_outcome.py | unit tests mock the evaluator | KEEP: same precedent as v0.5a #6, end-to-end smoke (Task 19) covers real path | 2026-05-03 |
 | 22 | New tool not yet wired into coach prompt | refactoring-safety | record_outcome MCP tool | coach prompt doesn't tell agent to call it | DEFER: scope-deferred to Task 11 by plan | 2026-05-03 |
 | 23 | New tool not yet wired into web | refactoring-safety | record_outcome / get_weakness_profile MCP tools | web client doesn't call them | DEFER: scope-deferred to Tasks 12-18 by plan | 2026-05-03 |
+
+## v0.6 sub-phase D round (commits 41a8b8b..fb052fc)
+
+| ID | Pattern | Skill | File:Line | Finding | Decision | Date |
+|----|---------|-------|-----------|---------|----------|------|
+| 24 | Spec deviation | spec-compliance | server/whiteboard_mcp/recommend.py focus-topic branch | "sister topic just mastered" justification template missing (spec line 93) | FIX: branch on solved=0+mastered prereqs to emit "start {topic} - you nailed {prereq} (n/m)" | 2026-05-03 |
+| 25 | Spec deviation | spec-compliance | server/whiteboard_mcp/recommend.py | strategy 4 (difficulty step-up) only fired inside focus branch, missing globally | FIX: added top-level strategy 4 pass after step-up, before fresh-start | 2026-05-03 |
+| 26 | Stale numbered comments | style | server/whiteboard_mcp/recommend.py | 1, 2, 3, 5 (skip 4) didn't match strategy ladder | FIX: added "4. Difficulty step-up" + "6. Nothing left" comments | 2026-05-03 |
+| 27 | Untested intentional absence | test-validation | server/tests/test_recommend.py test_returns_none_when_everything_cleared | accepted both None and fallback (vacuous) | FIX: pinned to `assert recommend_next(db) is None` | 2026-05-03 |
+| 28 | Coverage gap | test-validation | server/tests/test_recommend.py | "you nailed prereq" justification untested | FIX: added test_focus_topic_starting_fresh_credits_mastered_prereq | 2026-05-03 |
+| 29 | Coverage gap | test-validation | server/tests/test_recommend.py | difficulty step-up branch (no focus) untested | FIX: added test_difficulty_step_up_fires_without_focus | 2026-05-03 |
+| 30 | LIKE substring on JSON column | style | recommend.py _question_with_pattern | LIKE %"tag"% on json-encoded pattern_tags | DEFER: parameter-bound (no SQLi); pattern_tag values are bank-controlled; revisit with json_each in v0.7 | 2026-05-03 |
+| 31 | N+1 select | style | tools/get_roadmap.py | per-topic SELECT name in loop | DEFER: 18 topics, trivial; fold into _topic_status query if revisited | 2026-05-03 |
+| 32 | focus_topic_slug not validated | style | recommend.py | unknown slug silently falls through | DEFER: not harmful; spec doesn't require explicit error | 2026-05-03 |
