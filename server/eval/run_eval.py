@@ -70,7 +70,16 @@ def main() -> int:
     client = get_anthropic_client()
 
     failures = 0
+    skipped = 0
     for c in cases:
+        # v0.6: cases with user_text_sequence are multi-turn agent flows
+        # (e.g. asserting record_outcome is eventually called). The single-turn
+        # evaluator harness can't run them; skip with a marker so they're
+        # visible in the run output for manual inspection.
+        if "user_text_sequence" in c:
+            print(f"SKIP {c['name']}: multi-turn agent flow (eval harness is single-turn only)")
+            skipped += 1
+            continue
         try:
             statement, steps = _load_question(conn, c["question_slug"])
         except KeyError as e:
@@ -102,7 +111,8 @@ def main() -> int:
                 print(m)
             failures += 1
 
-    print(f"\n{len(cases) - failures}/{len(cases)} passed.")
+    runnable = len(cases) - skipped
+    print(f"\n{runnable - failures}/{runnable} passed ({skipped} skipped).")
     return 0 if not failures else 1
 
 

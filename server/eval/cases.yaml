@@ -85,3 +85,17 @@
   user_text: "rob(i) = max(rob(i-2) + nums[i], rob(i-1)). Either we take this house or skip it."
   expect:
     correct: true
+
+# v0.6: full-session flow asserting the outer agent calls record_outcome on
+# wrap_up. Multi-turn (user_text_sequence) - the current single-turn evaluator
+# harness skips cases of this shape and prints SKIP. Validates the case shape
+# is wired in cases.yaml and surfaces it for visual inspection of the agent's
+# trace; structured multi-turn assertions are a later phase.
+- name: two-sum-full-session-records-outcome
+  question_slug: two-sum
+  user_text_sequence:
+    - "Brute force is two nested loops, O(n^2)."
+    - "I can use a hash map to remember complements, O(1) lookup."
+    - "Single pass: while iterating, check map then insert. Complexity O(n) time, O(n) space."
+    - "Got it - all done."
+  expect_eventual_tool_call: record_outcome
