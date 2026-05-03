@@ -62,14 +62,36 @@ CREATE TABLE IF NOT EXISTS hint_levels (
   text     TEXT NOT NULL,
   UNIQUE(step_id, level)
 );
+
+-- v0.6 additions
+CREATE TABLE IF NOT EXISTS topic_prereqs (
+  topic_id         INTEGER NOT NULL REFERENCES topics(id),
+  prereq_topic_id  INTEGER NOT NULL REFERENCES topics(id),
+  PRIMARY KEY (topic_id, prereq_topic_id),
+  CHECK (topic_id != prereq_topic_id)
+);
+
+CREATE TABLE IF NOT EXISTS weakness_profile (
+  pattern_tag        TEXT PRIMARY KEY,
+  miss_count         INTEGER NOT NULL DEFAULT 0,
+  total_count        INTEGER NOT NULL DEFAULT 0,
+  last_seen_session  TEXT
+);
 """
 
-# Columns added to existing tables in v0.5a. CREATE IF NOT EXISTS won't apply
-# these to an already-created table, so we run ALTER TABLE explicitly when
+# Columns added to existing tables in later versions. CREATE IF NOT EXISTS won't
+# apply these to an already-created table, so we run ALTER TABLE explicitly when
 # the column is missing. Idempotent: skips if column already present.
 _QUESTIONS_NEW_COLUMNS = [
     ("leetcode_id", "INTEGER"),
     ("topic_id",    "INTEGER REFERENCES topics(id)"),
+]
+
+_SESSIONS_NEW_COLUMNS = [
+    ("outcome",         "TEXT CHECK (outcome IS NULL OR outcome IN "
+                        "('unaided','with_hints','partial','skipped','revisit_flagged'))"),
+    ("ended_at",        "TIMESTAMP"),
+    ("hints_used_json", "TEXT"),
 ]
 
 
@@ -86,8 +108,10 @@ def _existing_columns(conn: sqlite3.Connection, table: str) -> set[str]:
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
-    existing = _existing_columns(conn, "questions")
-    for col, decl in _QUESTIONS_NEW_COLUMNS:
-        if col not in existing:
-            conn.execute(f"ALTER TABLE questions ADD COLUMN {col} {decl}")
+    for table, new_cols in [("questions", _QUESTIONS_NEW_COLUMNS),
+                            ("sessions", _SESSIONS_NEW_COLUMNS)]:
+        existing = _existing_columns(conn, table)
+        for col, decl in new_cols:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
     conn.commit()
