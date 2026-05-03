@@ -143,3 +143,33 @@ Claude Code in the repo root and ask:
 This is a useful sanity-check proxy (case shape + canonical-step
 quality) but does NOT validate the production evaluator's
 forced-tool-use plumbing — for that, you still need the SDK path.
+
+## v0.6 end-to-end smoke
+
+Two scripts under `scripts/` cover the v0.6 wiring:
+
+- `scripts/smoke_v0_6_tools.py` — degraded smoke; exercises every layer
+  *except* the outer-coach Anthropic loop. Verifies `/api/roadmap`,
+  `/api/start-question`, `record_outcome` (idempotency, weakness bump,
+  session state), and the leave-session `partial` flow. **No API key
+  required.** Cleans up after itself only on success — if asserts fail,
+  you may need to wipe `coach.db` manually. Run after `docker compose up`:
+
+  ```
+  python3 scripts/smoke_v0_6_tools.py
+  ```
+
+- `scripts/smoke_two_sum.py` — full real-Opus smoke; drives `/api/chat`
+  through a Two Sum coaching session and watches SSE for the agent's
+  `record_outcome` tool call. **Requires a valid `ANTHROPIC_API_KEY`.**
+  Costs ~$0.50 of Opus. Run after `docker compose up`:
+
+  ```
+  python3 scripts/smoke_two_sum.py
+  ```
+
+The full smoke is the only thing that proves the coach prompt's discipline
+rule (rule 7) actually triggers `record_outcome` at wrap_up. If you can't
+run it (no API key), the unit tests + the degraded smoke + the eval case at
+`server/eval/cases.yaml::two-sum-full-session-records-outcome` together
+pin the contract on every other side.
