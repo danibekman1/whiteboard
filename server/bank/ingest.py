@@ -15,11 +15,18 @@ def _topic_id_map(conn: sqlite3.Connection) -> dict[str, int]:
     return {r["slug"]: r["id"] for r in conn.execute("SELECT id, slug FROM topics").fetchall()}
 
 
-def _ingest_one(conn: sqlite3.Connection, q: QuestionJSON, topics: dict[str, int]) -> None:
+def _ingest_one(
+    conn: sqlite3.Connection,
+    q: QuestionJSON,
+    topics: dict[str, int],
+    unknown_secondary: set[str],
+) -> None:
     primary_slug = q.topics[0]
     primary_id = topics.get(primary_slug)
     if primary_id is None:
-        print(f"  warn: unknown topic {primary_slug!r} for {q.slug}", file=sys.stderr)
+        # Loud: missing primary topic means the question has no primary
+        # topic_id and won't be filterable by topic.
+        print(f"  warn: unknown PRIMARY topic {primary_slug!r} for {q.slug}", file=sys.stderr)
 
     conn.execute("""
         INSERT INTO questions (slug, title, statement, difficulty, leetcode_id, topic_id)
@@ -31,11 +38,18 @@ def _ingest_one(conn: sqlite3.Connection, q: QuestionJSON, topics: dict[str, int
     """, (q.slug, q.title, q.statement, q.difficulty, q.leetcode_id, primary_id))
     qid = conn.execute("SELECT id FROM questions WHERE slug=?", (q.slug,)).fetchone()["id"]
 
-    # Replace steps + dependent hints + topic links.
+    # Replace steps + dependent hints + topic links. Sessions may reference
+    # the steps we're about to delete via current_step_id - NULL those out
+    # first so the FK constraint doesn't block the DELETE.
     step_ids = [r["id"] for r in conn.execute(
         "SELECT id FROM steps WHERE question_id=?", (qid,)).fetchall()]
     if step_ids:
         placeholders = ",".join("?" for _ in step_ids)
+        conn.execute(
+            f"UPDATE sessions SET current_step_id = NULL "
+            f"WHERE current_step_id IN ({placeholders})",
+            step_ids,
+        )
         conn.execute(f"DELETE FROM hint_levels WHERE step_id IN ({placeholders})", step_ids)
         conn.execute("DELETE FROM steps WHERE question_id=?", (qid,))
     conn.execute("DELETE FROM question_topics WHERE question_id=?", (qid,))
@@ -58,7 +72,9 @@ def _ingest_one(conn: sqlite3.Connection, q: QuestionJSON, topics: dict[str, int
         t_id = topics.get(t_slug)
         if t_id is None:
             if i > 0:
-                print(f"  warn: unknown topic {t_slug!r} for {q.slug}", file=sys.stderr)
+                # Quiet: secondary topics are best-effort. Collect for a
+                # single end-of-run summary instead of one warning per slug.
+                unknown_secondary.add(t_slug)
             continue
         conn.execute("""
             INSERT INTO question_topics (question_id, topic_id, is_primary)
@@ -69,6 +85,7 @@ def _ingest_one(conn: sqlite3.Connection, q: QuestionJSON, topics: dict[str, int
 def ingest_bank(conn: sqlite3.Connection, generated_dir: Path) -> int:
     topics = _topic_id_map(conn)
     files = sorted(generated_dir.glob("*.json"))
+    unknown_secondary: set[str] = set()
     n = 0
     for path in files:
         try:
@@ -76,9 +93,16 @@ def ingest_bank(conn: sqlite3.Connection, generated_dir: Path) -> int:
         except Exception as e:
             print(f"  skip {path.name}: schema invalid ({e})", file=sys.stderr)
             continue
-        _ingest_one(conn, q, topics)
+        _ingest_one(conn, q, topics, unknown_secondary)
         n += 1
     conn.commit()
+    if unknown_secondary:
+        print(
+            f"  info: {len(unknown_secondary)} secondary topic slug(s) not in "
+            f"taxonomy (linked questions kept their primary topic only): "
+            f"{sorted(unknown_secondary)}",
+            file=sys.stderr,
+        )
     return n
 
 

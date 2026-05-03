@@ -95,6 +95,35 @@ def test_ingest_skips_unknown_topic_with_warning(conn, tmp_path, capsys):
     _write_two_sum(gen_dir)
     ingest_bank(conn, gen_dir)
     captured = capsys.readouterr()
-    assert "unknown topic" in captured.out.lower() or "unknown topic" in captured.err.lower()
+    err = captured.err.lower()
+    assert "unknown primary topic" in err and "arrays-hashing" in err
+    # Secondary unknown topic surfaces as a single info summary line.
+    assert "secondary topic" in err and "hashing" in err
     qt = conn.execute("SELECT COUNT(*) AS c FROM question_topics").fetchone()["c"]
     assert qt == 0
+
+
+def test_ingest_nulls_out_session_current_step_id_on_replace(conn, tmp_path):
+    """Ingesting a bank update for a question that already has steps + an
+    active session pointing to one of those steps must not be blocked by
+    the sessions.current_step_id FK; the ingest sets the pointer to NULL."""
+    _seed_topics(conn)
+    gen_dir = tmp_path / "generated"
+    gen_dir.mkdir()
+    _write_two_sum(gen_dir)
+    ingest_bank(conn, gen_dir)
+
+    qid = conn.execute("SELECT id FROM questions WHERE slug='two-sum'").fetchone()["id"]
+    sid = conn.execute("SELECT id FROM steps WHERE question_id=? AND ordinal=2", (qid,)).fetchone()["id"]
+    conn.execute(
+        "INSERT INTO sessions (id, question_id, current_step_id) VALUES (?,?,?)",
+        ("s1", qid, sid),
+    )
+    conn.commit()
+
+    # Re-ingest replaces steps; the session's stale step pointer must be
+    # cleared, not block with FK constraint failure.
+    ingest_bank(conn, gen_dir)
+
+    row = conn.execute("SELECT current_step_id FROM sessions WHERE id='s1'").fetchone()
+    assert row["current_step_id"] is None

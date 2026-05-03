@@ -1,24 +1,20 @@
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import anthropic
 
 from whiteboard_mcp.evaluator import EvaluatorOutput
-from whiteboard_mcp.seed_loader import ingest_seeds
 from whiteboard_mcp.tools.evaluate_attempt import evaluate_attempt
 from whiteboard_mcp.tools.get_next_question import get_next_question
 
-SEED_DIR = Path(__file__).parent.parent / "whiteboard_mcp" / "seed"
-
 
 def _start_two_sum_session(db) -> str:
-    ingest_seeds(db, SEED_DIR)
     out = get_next_question(db, slug="two-sum")
     return out["session_id"]
 
 
-def test_evaluate_attempt_persists_and_returns_assessment(db):
+def test_evaluate_attempt_persists_and_returns_assessment(db_with_two_sum):
+    db = db_with_two_sum
     sid = _start_two_sum_session(db)
     fake_eval = EvaluatorOutput(
         step_ordinal=1, correct=True, missing=[], suggested_move="advance",
@@ -37,7 +33,8 @@ def test_evaluate_attempt_persists_and_returns_assessment(db):
     assert json.loads(rows[0]["evaluator_json"])["step_ordinal"] == 1
 
 
-def test_evaluate_attempt_increments_ordinal(db):
+def test_evaluate_attempt_increments_ordinal(db_with_two_sum):
+    db = db_with_two_sum
     sid = _start_two_sum_session(db)
     fake_eval = EvaluatorOutput(
         step_ordinal=1, correct=False, missing=["x"], suggested_move="nudge"
@@ -50,7 +47,8 @@ def test_evaluate_attempt_increments_ordinal(db):
     assert [r["ordinal"] for r in rows] == [1, 2]
 
 
-def test_evaluate_attempt_updates_current_step_id(db):
+def test_evaluate_attempt_updates_current_step_id(db_with_two_sum):
+    db = db_with_two_sum
     sid = _start_two_sum_session(db)
     fake_eval = EvaluatorOutput(
         step_ordinal=3, correct=True, missing=[], suggested_move="advance"
@@ -77,7 +75,8 @@ def test_evaluate_attempt_unknown_session_returns_error(db):
     }
 
 
-def test_evaluate_attempt_translates_evaluator_value_error(db):
+def test_evaluate_attempt_translates_evaluator_value_error(db_with_two_sum):
+    db = db_with_two_sum
     sid = _start_two_sum_session(db)
     with patch(
         "whiteboard_mcp.tools.evaluate_attempt.evaluate",
@@ -88,7 +87,8 @@ def test_evaluate_attempt_translates_evaluator_value_error(db):
     assert "tool_use" in out["raw"]
 
 
-def test_evaluate_attempt_translates_anthropic_timeout(db):
+def test_evaluate_attempt_translates_anthropic_timeout(db_with_two_sum):
+    db = db_with_two_sum
     sid = _start_two_sum_session(db)
     timeout_err = anthropic.APITimeoutError(request=MagicMock())
     with patch(
@@ -99,7 +99,8 @@ def test_evaluate_attempt_translates_anthropic_timeout(db):
     assert out == {"error": "evaluator_timeout"}
 
 
-def test_evaluate_attempt_translates_unexpected_exception(db):
+def test_evaluate_attempt_translates_unexpected_exception(db_with_two_sum):
+    db = db_with_two_sum
     sid = _start_two_sum_session(db)
     with patch(
         "whiteboard_mcp.tools.evaluate_attempt.evaluate",
@@ -110,12 +111,13 @@ def test_evaluate_attempt_translates_unexpected_exception(db):
     assert "network down" in out["message"]
 
 
-def test_evaluate_attempt_handles_out_of_range_ordinal(db, caplog):
+def test_evaluate_attempt_handles_out_of_range_ordinal(db_with_two_sum, caplog):
     """When evaluator returns an ordinal that doesn't match any step row,
     the attempt is still persisted but current_step_id is left unchanged
     and a warning is logged."""
     import logging
 
+    db = db_with_two_sum
     sid = _start_two_sum_session(db)
     fake_eval = EvaluatorOutput(
         step_ordinal=999, correct=True, missing=[], suggested_move="advance"
