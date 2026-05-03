@@ -1,0 +1,19 @@
+[
+  {"topic": "two-pointers",      "prereq": "arrays-hashing"},
+  {"topic": "stack",             "prereq": "arrays-hashing"},
+  {"topic": "binary-search",     "prereq": "two-pointers"},
+  {"topic": "sliding-window",    "prereq": "two-pointers"},
+  {"topic": "linked-list",       "prereq": "two-pointers"},
+  {"topic": "trees",             "prereq": "linked-list"},
+  {"topic": "tries",             "prereq": "trees"},
+  {"topic": "heap-priority-queue", "prereq": "trees"},
+  {"topic": "backtracking",      "prereq": "trees"},
+  {"topic": "graphs",            "prereq": "backtracking"},
+  {"topic": "advanced-graphs",   "prereq": "graphs"},
+  {"topic": "dp-1d",             "prereq": "trees"},
+  {"topic": "dp-2d",             "prereq": "dp-1d"},
+  {"topic": "greedy",            "prereq": "dp-1d"},
+  {"topic": "intervals",         "prereq": "greedy"},
+  {"topic": "math-geometry",     "prereq": "arrays-hashing"},
+  {"topic": "bit-manipulation",  "prereq": "arrays-hashing"}
+]
