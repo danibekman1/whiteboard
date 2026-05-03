@@ -20,6 +20,7 @@ from whiteboard_mcp.tools.get_hint import get_hint as _get_hint
 from whiteboard_mcp.tools.record_outcome import record_outcome as _record_outcome
 from whiteboard_mcp.tools.get_weakness_profile import get_weakness_profile as _get_weakness_profile
 from whiteboard_mcp.tools.get_roadmap import get_roadmap as _get_roadmap
+from whiteboard_mcp.tools.get_session import get_session as _get_session
 
 log = logging.getLogger(__name__)
 
@@ -159,6 +160,22 @@ def get_roadmap(focus_topic_slug: str | None = None) -> dict:
     """
     with contextlib.closing(get_conn()) as conn:
         return _get_roadmap(conn, focus_topic_slug=focus_topic_slug)
+
+
+@mcp.tool()
+def get_session(session_id: str) -> dict:
+    """Read metadata about an active session.
+
+    Returns {session_id, question: {slug, title, statement, difficulty},
+    current_step_ordinal, attempts_count, outcome}. Canonical reasoning
+    steps are NOT returned - they stay server-side.
+
+    Use when you need to remind yourself which question this session is on
+    (e.g. after a navigation, or to ground a tool call). Cheap; safe to call
+    at the start of any turn.
+    """
+    with contextlib.closing(get_conn()) as conn:
+        return _get_session(conn, session_id=session_id)
 
 
 @mcp.resource("roadmap://state")
