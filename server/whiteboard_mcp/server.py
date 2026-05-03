@@ -17,6 +17,7 @@ from bank.ingest import ingest_bank
 from whiteboard_mcp.tools.evaluate_attempt import evaluate_attempt as _evaluate_attempt
 from whiteboard_mcp.tools.get_next_question import get_next_question as _get_next_question
 from whiteboard_mcp.tools.get_hint import get_hint as _get_hint
+from whiteboard_mcp.tools.record_outcome import record_outcome as _record_outcome
 
 log = logging.getLogger(__name__)
 
@@ -107,6 +108,32 @@ def get_hint(session_id: str, level: int) -> dict:
     """
     with contextlib.closing(get_conn()) as conn:
         return _get_hint(conn, session_id=session_id, level=level)
+
+
+@mcp.tool()
+def record_outcome(session_id: str, outcome: str, hints_used: list[dict]) -> dict:
+    """Mark a session complete and update the weakness profile.
+
+    Call this when the candidate finishes a question (evaluator returned
+    suggested_move='wrap_up') or quits partway ('partial').
+
+    outcome:
+      'unaided'         - completed without any hints
+      'with_hints'      - completed but used at least one hint
+      'partial'         - quit before finishing (still useful signal)
+      'skipped'         - candidate said skip / can't make progress
+      'revisit_flagged' - candidate or you flagged for re-attempt later
+
+    hints_used: list of {'step_ordinal': int, 'level': int} entries the
+    coach observed during this session. Pass [] if none.
+
+    Returns {ok: true, outcome, weakness_updates: [{pattern_tag, miss_count,
+    total_count}, ...]} or {error: ...}.
+    """
+    with contextlib.closing(get_conn()) as conn:
+        return _record_outcome(
+            conn, session_id=session_id, outcome=outcome, hints_used=hints_used,
+        )
 
 
 def main() -> None:
