@@ -22,7 +22,7 @@ from bank.generator import (
     generate_with_retries,
     GenerationInput,
     GenerationFailed,
-    _NON_RETRYABLE,
+    NON_RETRYABLE_ERRORS,
 )
 from bank.validator import validate_one
 from bank.schemas import QuestionJSON
@@ -42,9 +42,13 @@ def _load_seeds() -> list[GenerationInput]:
     for entry in blind:
         t, s = optimal.get(entry["slug"], ("", ""))
         seeds.append(GenerationInput(
-            slug=entry["slug"], title=entry["title"], difficulty=entry["difficulty"],
-            topic=entry["topic"], leetcode_id=entry.get("leetcode_id"),
-            optimal_time=t or None, optimal_space=s or None,
+            slug=entry["slug"],
+            title=entry["title"],
+            difficulty=entry["difficulty"],
+            topic=entry["topic"],
+            leetcode_id=entry.get("leetcode_id"),
+            optimal_time=t or None,
+            optimal_space=s or None,
         ))
     return seeds
 
@@ -100,7 +104,7 @@ def main() -> int:
             print(f"  FAIL after {len(e.attempt_errors)} attempts")
             failures.append((seed.slug, e.attempt_errors[-1]))
             continue
-        except _NON_RETRYABLE as e:
+        except NON_RETRYABLE_ERRORS as e:
             # Auth / billing / bad-request: every remaining seed will hit the
             # same wall, so fail the whole run with a clear message instead of
             # silently looping through 50 more seeds.

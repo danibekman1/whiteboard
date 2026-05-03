@@ -164,12 +164,16 @@ def _encode(v):
 '''
 
 
+# Epilogue reads fn_name from sys.argv[1] and cases (a JSON string) from
+# sys.argv[2] - no source-level placeholder substitution, so candidate code
+# can contain arbitrary string literals without colliding with our markers.
 _RUNNER_EPILOGUE = '''
-fn = globals().get(__FN_NAME__)
+fn_name = sys.argv[1]
+cases = json.loads(sys.argv[2])
+fn = globals().get(fn_name)
 if fn is None:
-    print(json.dumps({"error": "function_not_found", "expected": __FN_NAME__}))
+    print(json.dumps({"error": "function_not_found", "expected": fn_name}))
     sys.exit(2)
-cases = json.loads(__CASES_JSON__)
 results = []
 for i, c in enumerate(cases):
     try:
@@ -194,10 +198,8 @@ print(json.dumps(results))
 '''
 
 
-def _build_runner(code: str, fn_name: str, cases_json: str) -> str:
-    epilogue = _RUNNER_EPILOGUE.replace("__FN_NAME__", json.dumps(fn_name))
-    epilogue = epilogue.replace("__CASES_JSON__", json.dumps(cases_json))
-    return _RUNNER_PRELUDE + "\n" + code + "\n" + epilogue
+def _build_runner(code: str) -> str:
+    return _RUNNER_PRELUDE + "\n" + code + "\n" + _RUNNER_EPILOGUE
 
 
 def check(
@@ -209,10 +211,10 @@ def check(
 ) -> CheckResult:
     fn = _func_name_from_slug(slug)
     cases_json = json.dumps([{"input": c.input, "expected": c.expected} for c in test_cases])
-    runner = _build_runner(solution.code, fn, cases_json)
+    runner = _build_runner(solution.code)
     try:
         cp = subprocess.run(
-            [sys.executable, "-c", runner],
+            [sys.executable, "-c", runner, fn, cases_json],
             capture_output=True, text=True, timeout=timeout_s,
         )
     except subprocess.TimeoutExpired as e:

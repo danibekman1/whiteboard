@@ -1,7 +1,14 @@
 """Ingest bank/generated/<slug>.json files into coach.db.
 
 Idempotent: re-running replaces steps/hints/topics for each question, but
-preserves the question's id (so existing sessions still resolve)."""
+preserves the question's id (so existing sessions still resolve).
+
+Side effect on re-ingest: any in-flight session whose `current_step_id`
+points to a step row about to be deleted gets its pointer set to NULL
+first (otherwise the FK constraint blocks the delete). Callers of
+`get_hint` on those sessions will receive `no_current_step` until the
+candidate makes another attempt and the evaluator reassigns
+`current_step_id`."""
 from __future__ import annotations
 import json
 import sqlite3

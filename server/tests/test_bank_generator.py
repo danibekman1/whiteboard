@@ -67,7 +67,10 @@ def test_generate_raises_on_no_tool_use():
     with pytest.raises(ValueError, match="no tool_use"):
         generate(
             client=client,
-            seed=GenerationInput(slug="x", title="X", difficulty="easy", topic="t"),
+            seed=GenerationInput(
+                slug="x", title="X", difficulty="easy", topic="t",
+                leetcode_id=None, optimal_time=None, optimal_space=None,
+            ),
         )
 
 
@@ -92,7 +95,10 @@ def test_generate_with_retries_retries_on_validation_failure():
     from bank.generator import generate_with_retries
     q = generate_with_retries(
         client=client,
-        seed=GenerationInput(slug="two-sum", title="Two Sum", difficulty="easy", topic="arrays-hashing"),
+        seed=GenerationInput(
+            slug="two-sum", title="Two Sum", difficulty="easy", topic="arrays-hashing",
+            leetcode_id=None, optimal_time=None, optimal_space=None,
+        ),
         max_attempts=3,
     )
     assert q.slug == "two-sum"
@@ -111,7 +117,10 @@ def test_generate_with_retries_gives_up_after_max():
     with pytest.raises(GenerationFailed) as ei:
         generate_with_retries(
             client=client,
-            seed=GenerationInput(slug="x", title="X", difficulty="easy", topic="t"),
+            seed=GenerationInput(
+                slug="x", title="X", difficulty="easy", topic="t",
+                leetcode_id=None, optimal_time=None, optimal_space=None,
+            ),
             max_attempts=3,
         )
     assert client.messages.create.call_count == 3
@@ -137,7 +146,10 @@ def test_generate_with_retries_bails_on_non_retryable_api_error():
     with pytest.raises(anthropic.BadRequestError):
         generate_with_retries(
             client=client,
-            seed=GenerationInput(slug="x", title="X", difficulty="easy", topic="t"),
+            seed=GenerationInput(
+                slug="x", title="X", difficulty="easy", topic="t",
+                leetcode_id=None, optimal_time=None, optimal_space=None,
+            ),
             max_attempts=3,
         )
     # Bailed after the first call - did not waste 2 more retries.

@@ -10,13 +10,19 @@ from bank.schemas import QuestionJSON
 
 @dataclass
 class GenerationInput:
+    """Seed for one question generation.
+
+    All fields required (no defaults). Optional values (`leetcode_id`,
+    `optimal_time`, `optimal_space`) are explicit `None` from the loader
+    when the seed CSV/JSON has no value, so 'no value' is unambiguous at
+    the construction site rather than hidden behind a default."""
     slug: str
     title: str
     difficulty: str
-    topic: str  # primary topic slug (additional topics OK in output)
-    leetcode_id: int | None = None
-    optimal_time: str | None = None
-    optimal_space: str | None = None
+    topic: str                  # primary topic slug (additional topics OK in output)
+    leetcode_id: int | None     # None when blind75.json omits it
+    optimal_time: str | None    # None when optimal_complexity.csv row is blank
+    optimal_space: str | None
 
 
 SYSTEM_PROMPT = """You are an expert software-engineering interview question author.
@@ -141,7 +147,7 @@ class GenerationFailed(Exception):
         super().__init__(f"{slug}: {len(attempt_errors)} attempts failed: {attempt_errors[-1]}")
 
 
-_NON_RETRYABLE = (
+NON_RETRYABLE_ERRORS = (
     anthropic.AuthenticationError,
     anthropic.PermissionDeniedError,
     anthropic.BadRequestError,  # includes 'credit balance too low'
@@ -163,7 +169,7 @@ def generate_with_retries(
     for attempt in range(max_attempts):
         try:
             return generate(client=client, seed=seed, model=model, extra_user_note=note)
-        except _NON_RETRYABLE:
+        except NON_RETRYABLE_ERRORS:
             # Re-raise so the orchestrator (CLI) can stop the whole run instead
             # of burning more retries on every remaining seed.
             raise

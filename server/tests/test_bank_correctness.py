@@ -36,8 +36,9 @@ def test_function_name_mismatch_raises():
     sol = CanonicalSolution(
         language="python", code="def wrong(): pass\n", time="O(1)", space="O(1)",
     )
+    # Input value here is irrelevant - the runner exits before reaching cases.
     with pytest.raises(FunctionNotFound):
-        check(slug="two-sum", solution=sol, test_cases=[TestCase(input=[], expected=None)])
+        check(slug="two-sum", solution=sol, test_cases=[TestCase(input=[1], expected=None)])
 
 
 def test_infinite_loop_times_out():
@@ -113,6 +114,26 @@ def test_linked_list_marker_decodes_and_compares():
     ]
     out = check(slug="reverse-linked-list", solution=sol, test_cases=cases)
     assert out.all_passed, out.failures
+
+
+def test_runner_nonzero_exit_surfaces_as_failure():
+    """Candidate code with a true syntax error (parse-time crash) exits the
+    runner with a non-zero, non-2 returncode. This must surface as a
+    CheckResult failure (not raise FunctionNotFound or ExecutionTimeout)
+    so the validator reports a useful triage message instead of crashing
+    the run."""
+    sol = CanonicalSolution(
+        language="python",
+        # Genuine SyntaxError - parser rejects this at compile time.
+        code="def two_sum(nums, target:\n    return [0, 1]\n",
+        time="O(1)", space="O(1)",
+    )
+    out = check(
+        slug="two-sum", solution=sol,
+        test_cases=[TestCase(input=[[1, 2], 3], expected=[0, 1])],
+    )
+    assert not out.all_passed
+    assert any("runner exit=" in f for f in out.failures)
 
 
 def test_tree_marker_decodes_and_compares():

@@ -101,6 +101,29 @@ def test_ingest_skips_unknown_topic_with_warning(conn, tmp_path, capsys):
     assert "secondary topic" in err and "hashing" in err
     qt = conn.execute("SELECT COUNT(*) AS c FROM question_topics").fetchone()["c"]
     assert qt == 0
+    # Question is still inserted but with topic_id=NULL (not silently dropped).
+    q = conn.execute("SELECT topic_id FROM questions WHERE slug='two-sum'").fetchone()
+    assert q is not None and q["topic_id"] is None
+
+
+def test_ingest_skips_corrupt_json_file_and_continues(conn, tmp_path, capsys):
+    """A corrupt or schema-invalid JSON in generated/ must be skipped with
+    a stderr warning, not crash the whole ingest. Other valid files in the
+    same directory must still be ingested."""
+    _seed_topics(conn)
+    gen_dir = tmp_path / "generated"
+    gen_dir.mkdir()
+    (gen_dir / "broken.json").write_text("{not valid json at all")
+    _write_two_sum(gen_dir)
+
+    n = ingest_bank(conn, gen_dir)
+    assert n == 1  # only two-sum landed
+
+    captured = capsys.readouterr()
+    assert "skip broken.json" in captured.err.lower()
+    assert "schema invalid" in captured.err.lower()
+    nq = conn.execute("SELECT COUNT(*) AS c FROM questions").fetchone()["c"]
+    assert nq == 1
 
 
 def test_ingest_nulls_out_session_current_step_id_on_replace(conn, tmp_path):

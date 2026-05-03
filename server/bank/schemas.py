@@ -40,7 +40,11 @@ class TestCase(BaseModel):
     # Pydantic class, not a pytest test class.
     __test__ = False
 
-    input: list  # function args, positional
+    # `input` is the positional-args list passed to the canonical solution
+    # via *args. Empty list would mean fn() with no args, which doesn't fit
+    # any LeetCode-style problem - reject at schema time for a clearer error
+    # than the eventual TypeError from the runner.
+    input: list = Field(min_length=1)
     expected: object
 
 
