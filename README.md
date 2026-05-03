@@ -1,6 +1,6 @@
 # whiteboard
 
-Socratic interview-prep coach for FAANG-tier algo rounds (system design lands in a later phase). v0.5a scope: 75 Opus-generated Blind-75 questions with 3-level hints, two-LLM split (outer coach in Next.js + inner Opus evaluator in the MCP server), chat-only UI.
+Socratic interview-prep coach for FAANG-tier algo rounds (system design lands in a later phase). v0.6 ships a roadmap UI on top of the 75-question bank: topic-DAG home page, per-topic progress + recommended-next, agent-classified session outcomes feeding a per-pattern weakness profile.
 
 ## Run
 
@@ -9,7 +9,7 @@ cp .env.example .env   # paste your ANTHROPIC_API_KEY
 ./run.sh
 ```
 
-Then open http://localhost:3000 and say "let's do Two Sum".
+Then open http://localhost:3000 — the home page is the topic-DAG roadmap. Click a topic to see its questions and the recommended-next pick; clicking a question (or the recommendation card) starts a coaching session at `/practice/<session_id>`.
 
 ## Bank pipeline (offline, dev-time)
 
@@ -40,31 +40,59 @@ server/bank/agent-generator-prompt.md, one sub-agent per slug." The SDK path
 (`bank/generator.py`) is unchanged and remains the supported flow for CI and
 production.
 
+## What's new in v0.6
+
+- **Roadmap home page** at `/`: topic-DAG (react-flow) with per-topic status
+  (mastered / in-progress / unlocked / locked) plus a right-pane detail view
+  showing prereqs, the recommended-next pick, and the topic's question list.
+- **`record_outcome` MCP tool** called by the outer coach at session end
+  (`unaided` / `with_hints` / `partial` / `skipped` / `revisit_flagged`).
+  Idempotent; bumps a per-pattern `weakness_profile` table.
+- **`get_weakness_profile` MCP tool**: per-pattern miss rates, sorted desc.
+- **`get_roadmap` MCP tool + `roadmap://state` resource**: full DAG payload
+  (topics, edges, questions, recommendation, top-5 weakness) for the UI.
+- **Heuristic recommendations** — pure Python, deterministic, no per-load
+  LLM call. Five strategies in priority order: focus-topic continuation,
+  weakness drill, topic step-up after prereqs cleared, difficulty step-up
+  after easies cleared, fresh start. Templated justifications.
+- **Topic prereqs DAG** seeded from `server/bank/seed/topic_prereqs.json`
+  (17 edges across 18 topics, mirrors NeetCode's roadmap). Cycle-checked
+  at boot.
+- **`/practice/[id]` route** holds the chat UI (moved from `/`); `/api/start-question`
+  bridges the roadmap "Start" click to a session.
+- **End-session UX**: "Leave session" button (records `partial` outcome via
+  the agent), session-complete banner triggered when the agent calls
+  `record_outcome`.
+
 ## What works in v0.5a
 
 - **75 algo questions** (Blind-75 sourced) with 3-level hints per step.
 - **3 MCP tools**: `get_next_question`, `evaluate_attempt`, `get_hint`.
 - Two-LLM split: outer Socratic coach (Next.js, streaming) + inner Opus
   evaluator with forced tool-use structured output (Python MCP server).
-- Topic tagging (flat — DAG / prereqs come in a later phase).
 - Pedagogy eval: 11 golden cases sampled across the bank.
 - Sessions and attempts persist across container restarts
   (`server/data/coach.db`).
 - Chat history is browser-memory only — refresh loses chat (server-side
   `attempts` survive).
 
-## What's not in v0.5a
+## What's not in v0.6 (next phases)
 
-System design, weakness profile, roadmap UI, companies, prompt caching,
-chat-history persistence.
+System design (v0.7), LLM-justified recommendations, "Try anyway?" soft-lock
+on locked topics, server-side `hint_invocations` for accurate `hints_used`,
+companies, multi-user / auth, hosted deployment.
 
 ## Layout
 
 ```
 server/             Python MCP server (FastMCP + SQLite)
-  whiteboard_mcp/   Package: db, evaluator, errors, topic_seed_loader, tools/
+  whiteboard_mcp/   Package: db, evaluator, errors, topic_seed_loader,
+                    recommend, tools/
+    tools/          get_next_question, evaluate_attempt, get_hint,
+                    record_outcome, get_weakness_profile, get_roadmap
   bank/             Offline question-bank pipeline
-    seed/           blind75.json, topics.json, optimal_complexity.csv (source of truth)
+    seed/           blind75.json, topics.json, topic_prereqs.json,
+                    optimal_complexity.csv (source of truth)
     schemas.py      Pydantic shape for per-question JSON
     generator.py    Opus SDK forced tool-use generation (production path)
     validator.py    Schema + correctness (subprocess) + complexity validation
@@ -72,21 +100,23 @@ server/             Python MCP server (FastMCP + SQLite)
     generated/      ← gitignored: produced by bank.generate
     agent-generator-prompt.md   Sub-agent prompt template (dev fallback path)
   tests/            pytest unit + integration
-    fixtures/legacy_seeds/   v0 hand-crafted JSONs (kept for regression)
   eval/             Golden-case pedagogy eval (real Opus calls)
   data/             coach.db (gitignored, volume-mounted)
 
-web/                Next.js 16 + React 19 + TS chat UI
-  app/api/chat/     SSE route running the outer-coach loop
-  lib/              anthropic.ts, mcp-client.ts, coach-prompt.ts, sse.ts, types.ts
-  components/       Chat, Composer, Message, ToolCallPill
+web/                Next.js 16 + React 19 + TS UI
+  app/              / (roadmap), /practice/[id] (chat),
+                    /api/chat (SSE), /api/roadmap, /api/start-question
+  lib/              anthropic.ts, mcp-client.ts, coach-prompt.ts,
+                    status-colors.ts, sse.ts, types.ts
+  components/       Chat, Composer, Message, ToolCallPill,
+                    Roadmap, ProgressDots, QuestionCard, TopicDetail
 ```
 
 ## Tests
 
 ```
-cd server && uv run pytest -v          # 76 tests
-cd web    && npm test                   # 19 tests
+cd server && uv run pytest -v          # 115 tests
+cd web    && npm test                   # 50 tests
 ```
 
 ## Pedagogy eval (real Opus calls, ~$1-2)
