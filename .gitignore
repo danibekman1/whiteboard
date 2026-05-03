@@ -27,6 +27,9 @@ docs/plans/
 # Generated bank questions - reproducible from seed/, kept out of git
 server/bank/generated/
 
+# Claude Code session-local state
+.claude/
+
 # OS
 .DS_Store
 
