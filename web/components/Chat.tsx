@@ -2,38 +2,46 @@
 import { useEffect, useRef, useState } from "react"
 import { Composer } from "./Composer"
 import { Message } from "./Message"
+import { QuestionPane } from "./QuestionPane"
 import { ChatBlock, WireMessage } from "@/lib/types"
 
 type ChatMessage = { role: "user" | "assistant"; blocks: ChatBlock[] }
+
+type SessionMeta = {
+  session_id: string
+  question: { slug: string; title: string; statement: string; difficulty: "easy" | "medium" | "hard" }
+  current_step_ordinal: number | null
+  attempts_count: number
+  outcome: string | null
+}
 
 export function Chat({ sessionId }: { sessionId?: string } = {}) {
   const [msgs, setMsgs] = useState<ChatMessage[]>([])
   const [history, setHistory] = useState<WireMessage[]>([])
   const [busy, setBusy] = useState(false)
   const [ended, setEnded] = useState(false)
-  // Guard against React Strict Mode double-invocation: only seed once per
-  // mounted component instance, even though the effect fires twice in dev.
-  const seededRef = useRef(false)
+  const [session, setSession] = useState<SessionMeta | null>(null)
+  const [sessionError, setSessionError] = useState<string | null>(null)
+  // Guard against React Strict Mode double-invocation.
+  const fetchedRef = useRef(false)
 
   useEffect(() => {
-    if (!sessionId || seededRef.current) return
-    seededRef.current = true
-    // Seed history (not msgs) with a primer pair so the next real user turn
-    // arrives with context: the agent sees a fake "continue session X" user
-    // turn and a fake assistant ack, then the user's actual message. The
-    // coach prompt instructs the agent to call evaluate_attempt with that
-    // session_id. We don't display the fake user msg in the UI; we do show
-    // the assistant ack as the chat opener.
-    setHistory([
-      { role: "user", content: `(Continue whiteboard session ${sessionId} - call evaluate_attempt with this session_id when I respond next.)` },
-      { role: "assistant", content: [{ type: "text", text: "Picking up where you left off. Walk me through your latest thought." }] },
-    ])
-    setMsgs([
-      {
-        role: "assistant",
-        blocks: [{ kind: "text", text: "Picking up where you left off. Walk me through your latest thought." }],
-      },
-    ])
+    if (!sessionId || fetchedRef.current) return
+    fetchedRef.current = true
+    fetch(`/api/session/${encodeURIComponent(sessionId)}`)
+      .then(async (r) => {
+        if (!r.ok) {
+          setSessionError(`Couldn't load session (${r.status})`)
+          return null
+        }
+        return r.json() as Promise<SessionMeta>
+      })
+      .then((data) => {
+        if (!data) return
+        setSession(data)
+        if (data.outcome) setEnded(true)
+      })
+      .catch((e) => setSessionError(String(e)))
   }, [sessionId])
 
   async function send(text: string) {
@@ -51,7 +59,7 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: text, history, session_id: sessionId }),
       })
       if (!res.body) throw new Error("no body")
       const reader = res.body.getReader()
@@ -121,10 +129,21 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
           </button>
         </div>
       )}
+      {session && <QuestionPane question={session.question} />}
+      {sessionError && (
+        <div style={{ padding: 12, color: "#b91c1c", background: "#fee2e2", fontSize: 13 }}>
+          {sessionError}
+        </div>
+      )}
       <div style={{ flex: 1, overflow: "auto" }}>
-        {msgs.length === 0 && (
+        {msgs.length === 0 && !sessionId && (
           <div style={{ padding: 24, color: "#666" }}>
             Type a question (e.g. &quot;give me Two Sum&quot;) to start.
+          </div>
+        )}
+        {msgs.length === 0 && sessionId && session && (
+          <div style={{ padding: 24, color: "#666" }}>
+            Walk me through your reasoning. What&apos;s the first thing you reach for?
           </div>
         )}
         {msgs.map((m, i) => (

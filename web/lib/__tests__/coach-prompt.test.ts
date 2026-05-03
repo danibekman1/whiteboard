@@ -48,4 +48,11 @@ describe("COACH_SYSTEM_PROMPT", () => {
   it("instructs partial outcome on user abandon", () => {
     expect(COACH_SYSTEM_PROMPT).toMatch(/(abandon|leav|done|quit)[\s\S]*partial/i)
   })
+  it("instructs the agent to use the injected session_id", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/session_id/i)
+    expect(COACH_SYSTEM_PROMPT).toMatch(/(injects|inject|injected)/i)
+  })
+  it("references the get_session tool", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/get_session/)
+  })
 })
