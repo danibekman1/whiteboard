@@ -1,30 +1,90 @@
 @import "tailwindcss";
 
+/*
+ * Whiteboard Coach design tokens.
+ * Source of truth: design-system/MASTER.md.
+ *
+ * Tailwind v4: light values live on :root, dark mode flips them via the
+ * prefers-color-scheme media query, and @theme inline aliases them as
+ * --color-*, --shadow-*, --font-* so utilities like bg-primary, shadow-clay,
+ * font-heading resolve to the runtime var.
+ */
+
 :root {
+  /* Surfaces */
   --bg: #FAFAF9;
   --surface: #FFFFFF;
-  --surface-muted: #F4F4F5;
+  --surface-muted: #F5F3FF;
   --line: #E4E4E7;
-  --text: #18181B;
-  --text-muted: #71717A;
-  --accent: #2563EB;
-  --accent-soft: #EFF4FF;
+  --line-accent: #C7D2FE;
+
+  /* Text */
+  --text: #312E81;
+  --text-body: #1F2937;
+  --text-muted: #475569;
+
+  /* Brand */
+  --primary: #4F46E5;
+  --primary-hover: #4338CA;
+  --secondary: #818CF8;
+  --tint: #EEF2FF;
+
+  /* Forward action */
+  --cta: #22C55E;
+  --cta-hover: #16A34A;
+
+  /* Status */
   --ok: #16A34A;
+  --warn: #F59E0B;
   --err: #DC2626;
+
+  /* Elevation - indigo-tinted, not pure black */
+  --shadow-clay-sm:
+    0 2px 6px -2px rgba(79, 70, 229, .10),
+    0 1px 2px -1px rgba(79, 70, 229, .06);
+  --shadow-clay:
+    0 8px 24px -6px rgba(79, 70, 229, .18),
+    0 2px 6px -2px rgba(79, 70, 229, .12),
+    inset 0 -2px 0 rgba(0, 0, 0, .04);
+  --shadow-clay-lg:
+    0 16px 40px -10px rgba(79, 70, 229, .22),
+    0 4px 10px -3px rgba(79, 70, 229, .14),
+    inset 0 -2px 0 rgba(0, 0, 0, .05);
+  --shadow-focus: 0 0 0 3px rgba(79, 70, 229, .35);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0B0B0E;
-    --surface: #131317;
-    --surface-muted: #1C1C21;
-    --line: #27272A;
+    --surface: #161620;
+    --surface-muted: #1E1B30;
+    --line: #2A2A35;
+    --line-accent: #3730A3;
+
     --text: #F4F4F5;
+    --text-body: #E4E4E7;
     --text-muted: #A1A1AA;
-    --accent: #818CF8;
-    --accent-soft: #1E1B4B;
-    --ok: #22C55E;
-    --err: #F87171;
+
+    --primary: #A5B4FC;
+    --primary-hover: #C7D2FE;
+    --secondary: #6366F1;
+    --tint: #1E1B30;
+
+    --cta: #4ADE80;
+    --cta-hover: #22C55E;
+
+    --shadow-clay-sm:
+      0 2px 6px -2px rgba(0, 0, 0, .40),
+      0 1px 2px -1px rgba(0, 0, 0, .30);
+    --shadow-clay:
+      0 8px 24px -6px rgba(0, 0, 0, .55),
+      0 2px 6px -2px rgba(0, 0, 0, .40),
+      inset 0 -2px 0 rgba(255, 255, 255, .03);
+    --shadow-clay-lg:
+      0 16px 40px -10px rgba(0, 0, 0, .65),
+      0 4px 10px -3px rgba(0, 0, 0, .50),
+      inset 0 -2px 0 rgba(255, 255, 255, .04);
+    --shadow-focus: 0 0 0 3px rgba(165, 180, 252, .45);
   }
 }
 
@@ -33,18 +93,41 @@
   --color-surface: var(--surface);
   --color-surface-muted: var(--surface-muted);
   --color-line: var(--line);
+  --color-line-accent: var(--line-accent);
+
   --color-text: var(--text);
+  --color-text-body: var(--text-body);
   --color-text-muted: var(--text-muted);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-tint: var(--tint);
+
+  --color-cta: var(--cta);
+  --color-cta-hover: var(--cta-hover);
+
   --color-ok: var(--ok);
+  --color-warn: var(--warn);
   --color-err: var(--err);
-  --font-sans: var(--font-geist-sans);
+
+  --shadow-clay-sm: var(--shadow-clay-sm);
+  --shadow-clay: var(--shadow-clay);
+  --shadow-clay-lg: var(--shadow-clay-lg);
+  --shadow-focus: var(--shadow-focus);
+
+  --font-heading: var(--font-fredoka);
+  --font-sans: var(--font-nunito);
   --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--bg);
+  color: var(--text-body);
+  font-family: var(--font-nunito), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-fredoka), system-ui, sans-serif;
   color: var(--text);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
