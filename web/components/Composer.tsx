@@ -19,7 +19,7 @@ export function Composer({
   return (
     <form
       onSubmit={submit}
-      style={{ display: "flex", gap: 8, padding: 12, borderTop: "1px solid #ddd" }}
+      className="flex items-end gap-2 p-3 border-t border-line bg-surface"
     >
       <textarea
         value={text}
@@ -30,9 +30,14 @@ export function Composer({
         rows={2}
         placeholder={busy ? "thinking…" : "your reasoning…"}
         disabled={busy}
-        style={{ flex: 1, padding: 8, fontFamily: "inherit", resize: "vertical" }}
+        className="flex-1 rounded-xl border border-line bg-surface text-text-body px-3 py-2 leading-relaxed resize-y min-h-12 max-h-40 placeholder:text-text-muted focus:outline-none focus:border-primary focus:shadow-[var(--shadow-focus)] disabled:opacity-60 transition-shadow"
       />
-      <button type="submit" disabled={busy || !text.trim()} style={{ padding: "0 16px" }}>
+      <button
+        type="submit"
+        disabled={busy || !text.trim()}
+        aria-label="Send"
+        className="cursor-pointer h-10 px-4 rounded-xl bg-primary text-white font-semibold shadow-clay-sm hover:bg-primary-hover active:translate-y-px disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)] transition-[background,transform] duration-150"
+      >
         ↑
       </button>
     </form>

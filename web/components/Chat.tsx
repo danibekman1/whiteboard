@@ -104,18 +104,13 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div className="min-h-screen flex flex-col">
       {sessionId && (
-        <div
-          style={{
-            padding: 8,
-            borderBottom: "1px solid #e5e7eb",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <a href="/" style={{ fontSize: 12 }}>
+        <header className="sticky top-0 z-10 h-12 px-4 flex items-center justify-between border-b border-line bg-surface/85 backdrop-blur">
+          <a
+            href="/"
+            className="text-sm text-text-muted hover:text-primary transition-colors"
+          >
             ← Roadmap
           </a>
           <button
@@ -123,26 +118,26 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
             onClick={() => send("(I'm leaving this session)")}
             disabled={busy || ended}
             aria-label="Leave session and return to roadmap"
-            style={{ fontSize: 12, padding: "2px 8px" }}
+            className="cursor-pointer text-sm text-text-muted hover:text-err disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             Leave session
           </button>
-        </div>
+        </header>
       )}
       {session && <QuestionPane question={session.question} />}
       {sessionError && (
-        <div style={{ padding: 12, color: "#b91c1c", background: "#fee2e2", fontSize: 13 }}>
+        <div className="bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm px-4 py-3">
           {sessionError}
         </div>
       )}
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div className="flex-1 overflow-y-auto py-2">
         {msgs.length === 0 && !sessionId && (
-          <div style={{ padding: 24, color: "#666" }}>
+          <div className="px-4 py-12 text-center text-text-muted text-sm">
             Type a question (e.g. &quot;give me Two Sum&quot;) to start.
           </div>
         )}
         {msgs.length === 0 && sessionId && session && (
-          <div style={{ padding: 24, color: "#666" }}>
+          <div className="px-4 py-12 text-center text-text-muted text-sm">
             Walk me through your reasoning. What&apos;s the first thing you reach for?
           </div>
         )}
@@ -151,15 +146,11 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
         ))}
       </div>
       {ended && (
-        <div
-          style={{
-            padding: 8,
-            background: "#dcfce7",
-            textAlign: "center",
-            fontSize: 13,
-          }}
-        >
-          Session complete. <a href="/">Back to roadmap →</a>
+        <div className="bg-green-50 dark:bg-green-950/40 border-t border-green-200 dark:border-green-900 text-green-800 dark:text-green-300 text-sm py-2 px-4 text-center">
+          Session complete.{" "}
+          <a href="/" className="font-semibold hover:underline">
+            Back to roadmap →
+          </a>
         </div>
       )}
       <Composer onSend={send} busy={busy || ended} />

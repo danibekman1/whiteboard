@@ -1,4 +1,10 @@
-import { PROGRESS_DOT_COLORS } from "@/lib/status-colors"
+const COLOR_CLASS = {
+  mastered: "bg-green-500",
+  solved: "bg-amber-500",
+  empty: "bg-zinc-200 dark:bg-zinc-700",
+} as const
+
+type DotState = keyof typeof COLOR_CLASS
 
 export function ProgressDots({
   solved,
@@ -9,21 +15,16 @@ export function ProgressDots({
   total: number
   mastered: number
 }) {
-  const states = Array.from({ length: total }, (_, i) =>
+  const states: DotState[] = Array.from({ length: total }, (_, i) =>
     i < mastered ? "mastered" : i < solved ? "solved" : "empty",
   )
   return (
-    <div style={{ display: "inline-flex", gap: 4 }}>
+    <div className="inline-flex gap-1">
       {states.map((s, i) => (
         <div
           key={i}
           data-state={s}
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 5,
-            background: PROGRESS_DOT_COLORS[s as keyof typeof PROGRESS_DOT_COLORS],
-          }}
+          className={`w-2.5 h-2.5 rounded-full ${COLOR_CLASS[s]}`}
         />
       ))}
     </div>

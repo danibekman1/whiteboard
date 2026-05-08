@@ -2,7 +2,7 @@
 import "reactflow/dist/style.css"
 import ReactFlow, { Background, Controls, Node, Edge, NodeProps, Position } from "reactflow"
 import { useMemo } from "react"
-import { STATUS_COLORS, type TopicStatus } from "@/lib/status-colors"
+import { type TopicStatus } from "@/lib/status-colors"
 
 export type Topic = {
   slug: string
@@ -16,24 +16,33 @@ export type Topic = {
 export type RoadmapEdge = { from: string; to: string }
 export type RoadmapData = { topics: Topic[]; edges: RoadmapEdge[] }
 
+const STATUS_RING: Record<TopicStatus, string> = {
+  mastered: "border-green-500",
+  in_progress: "border-amber-500",
+  unlocked: "border-primary",
+  locked: "border-slate-400",
+}
+
+const STATUS_BG_SELECTED: Record<TopicStatus, string> = {
+  mastered: "bg-green-50 dark:bg-green-950/40",
+  in_progress: "bg-amber-50 dark:bg-amber-950/40",
+  unlocked: "bg-tint",
+  locked: "bg-slate-100 dark:bg-slate-800/40",
+}
+
 function TopicNode({ data, selected }: NodeProps<Topic & { selected: boolean }>) {
-  const color = STATUS_COLORS[data.status]
   return (
     <div
       data-testid={`topic-node-${data.slug}`}
-      style={{
-        padding: "8px 12px",
-        borderRadius: 8,
-        border: `2px solid ${color}`,
-        background: selected ? color + "33" : "white",
-        minWidth: 110,
-        textAlign: "center",
-        cursor: "pointer",
-        fontSize: 12,
-      }}
+      className={`
+        cursor-pointer rounded-xl border-2 px-3 py-2 min-w-[110px] text-center text-xs
+        ${STATUS_RING[data.status]}
+        ${data.selected ? STATUS_BG_SELECTED[data.status] : "bg-surface"}
+        shadow-clay-sm hover:shadow-clay transition-shadow
+      `}
     >
-      <div style={{ fontWeight: 600 }}>{data.name}</div>
-      <div style={{ color: "#666", marginTop: 2 }}>
+      <div className="font-heading font-semibold text-text">{data.name}</div>
+      <div className="text-text-muted mt-0.5">
         {data.solved}/{data.total} {data.status}
       </div>
     </div>
@@ -105,7 +114,7 @@ export function Roadmap({
     [data],
   )
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div className="w-full h-full">
       <ReactFlow
         nodes={nodes}
         edges={edges}

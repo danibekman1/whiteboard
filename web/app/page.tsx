@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Roadmap, type RoadmapData } from "@/components/Roadmap"
 import { TopicDetail } from "@/components/TopicDetail"
-import { RECOMMENDATION_BG, RECOMMENDATION_FG } from "@/lib/status-colors"
 
 type Topic = RoadmapData["topics"][number]
 type RoadmapPayload = RoadmapData & {
@@ -49,17 +48,19 @@ export default function Home() {
     router.push(`/practice/${session_id}`)
   }
 
-  if (!data) return <main style={{ padding: 24 }}>loading roadmap…</main>
+  if (!data) {
+    return <main className="p-6 text-text-muted text-sm">loading roadmap…</main>
+  }
   const selectedTopic = selected
     ? data.topics.find((t: Topic) => t.slug === selected) ?? null
     : null
 
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      <div style={{ flex: 1, borderRight: "1px solid #e5e7eb" }}>
+    <div className="flex h-screen">
+      <div className="flex-1 border-r border-line">
         <Roadmap data={data} onSelect={onSelectTopic} selectedSlug={selected} />
       </div>
-      <div style={{ width: 360 }}>
+      <aside className="w-[360px] bg-surface">
         {selectedTopic ? (
           <TopicDetail
             topic={selectedTopic}
@@ -69,49 +70,29 @@ export default function Home() {
             onStart={onStart}
           />
         ) : (
-          <div style={{ padding: 24, color: "#666" }}>
-            <p>Click a topic in the DAG to see questions and recommended next.</p>
+          <div className="p-5 text-text-muted">
+            <p className="text-sm">
+              Click a topic in the DAG to see questions and recommended next.
+            </p>
             {data.recommendation && (
-              <div
-                style={{
-                  marginTop: 16,
-                  padding: 12,
-                  background: RECOMMENDATION_BG,
-                  borderRadius: 6,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: RECOMMENDATION_FG,
-                    textTransform: "uppercase",
-                  }}
-                >
+              <div className="mt-4 rounded-xl bg-tint border border-line-accent p-3 shadow-clay-sm">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-primary">
                   Recommended right now
                 </div>
                 <button
                   onClick={() => onStart(data.recommendation.question_slug)}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    padding: 0,
-                    cursor: "pointer",
-                    fontSize: 14,
-                    fontWeight: 600,
-                  }}
+                  className="cursor-pointer bg-transparent border-0 p-0 text-sm font-semibold text-text mt-1 hover:text-primary transition-colors"
                 >
                   {data.recommendation.question_slug} ({data.recommendation.difficulty}) →
                 </button>
-                <div
-                  style={{ fontSize: 12, fontStyle: "italic", marginTop: 4 }}
-                >
+                <div className="text-xs italic mt-1 text-text-muted">
                   &quot;{data.recommendation.justification}&quot;
                 </div>
               </div>
             )}
           </div>
         )}
-      </div>
+      </aside>
     </div>
   )
 }

@@ -1,7 +1,6 @@
 "use client"
 import { ProgressDots } from "./ProgressDots"
 import { QuestionCard } from "./QuestionCard"
-import { STATUS_COLORS, RECOMMENDATION_BG, RECOMMENDATION_FG } from "@/lib/status-colors"
 
 type Topic = {
   slug: string
@@ -45,105 +44,65 @@ export function TopicDetail({
     .map((p) => allTopics.find((t) => t.slug === p))
     .filter(Boolean) as Topic[]
   return (
-    <div style={{ padding: 16, height: "100%", overflow: "auto" }}>
-      <div
-        style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}
-      >
-        <h2 style={{ margin: 0 }}>{topic.name}</h2>
-        <span style={{ fontSize: 14, color: "#666" }}>
+    <div className="p-5 h-full overflow-y-auto">
+      <div className="flex justify-between items-baseline">
+        <h2 className="font-heading text-xl font-semibold text-text m-0">
+          {topic.name}
+        </h2>
+        <span className="text-sm text-text-muted">
           {topic.solved}/{topic.total} {topic.status}
         </span>
       </div>
-      <div style={{ marginTop: 8 }}>
-        <ProgressDots solved={topic.solved} mastered={topic.mastered} total={topic.total} />
+      <div className="mt-2">
+        <ProgressDots
+          solved={topic.solved}
+          mastered={topic.mastered}
+          total={topic.total}
+        />
       </div>
 
       {prereqDetails.length > 0 && (
-        <section style={{ marginTop: 16 }}>
-          <h4
-            style={{
-              margin: "0 0 6px 0",
-              fontSize: 12,
-              color: "#666",
-              textTransform: "uppercase",
-            }}
-          >
+        <section className="mt-5">
+          <h4 className="text-[11px] font-semibold uppercase tracking-wide text-text-muted m-0 mb-1.5">
             Prerequisites
           </h4>
           {prereqDetails.map((p) => (
-            <div key={p.slug} style={{ fontSize: 13, padding: "2px 0" }}>
+            <div
+              key={p.slug}
+              className="text-sm py-0.5 flex items-center gap-2 text-text-body"
+            >
               <span
-                style={{
-                  display: "inline-block",
-                  width: 12,
-                  height: 12,
-                  borderRadius: 6,
-                  background: p.status === "mastered" ? STATUS_COLORS.mastered : "#d1d5db",
-                  marginRight: 8,
-                  verticalAlign: "middle",
-                }}
+                className={`inline-block w-3 h-3 rounded-full ${
+                  p.status === "mastered" ? "bg-green-500" : "bg-zinc-300 dark:bg-zinc-600"
+                }`}
               />
-              {p.name} - {p.solved}/{p.total} {p.status === "mastered" && "✓"}
+              <span>
+                {p.name} - {p.solved}/{p.total} {p.status === "mastered" && "✓"}
+              </span>
             </div>
           ))}
         </section>
       )}
 
       {recommendation && (
-        <section
-          style={{
-            marginTop: 16,
-            padding: 12,
-            background: RECOMMENDATION_BG,
-            borderRadius: 6,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: RECOMMENDATION_FG,
-              textTransform: "uppercase",
-              marginBottom: 4,
-            }}
-          >
+        <section className="mt-5 rounded-xl bg-tint border border-line-accent p-3 shadow-clay-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-primary mb-1">
             Recommended next
           </div>
           <button
             onClick={() => onStart(recommendation.question_slug)}
-            style={{
-              background: "transparent",
-              border: "none",
-              padding: 0,
-              cursor: "pointer",
-              fontSize: 14,
-              fontWeight: 600,
-              textAlign: "left",
-            }}
+            className="cursor-pointer bg-transparent border-0 p-0 text-sm font-semibold text-text text-left hover:text-primary transition-colors"
           >
             {recommendation.question_slug} ({recommendation.difficulty}) →
           </button>
-          <div
-            style={{
-              fontSize: 12,
-              color: RECOMMENDATION_FG,
-              fontStyle: "italic",
-              marginTop: 4,
-            }}
-          >
+          <div className="text-xs text-text-muted italic mt-1">
             &quot;{recommendation.justification}&quot;
           </div>
         </section>
       )}
 
-      <section style={{ marginTop: 16 }}>
-        <h4
-          style={{
-            margin: "0 0 6px 0",
-            fontSize: 12,
-            color: "#666",
-            textTransform: "uppercase",
-          }}
-        >
+      <section className="mt-5">
+        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-text-muted m-0 mb-1.5">
           Questions
         </h4>
         {inTopic.map((q) => (

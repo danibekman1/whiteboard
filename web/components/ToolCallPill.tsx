@@ -7,20 +7,22 @@ export function ToolCallPill({
   input: any
   result?: any
 }) {
+  const errored = !!result?.error
   return (
-    <details
-      style={{
-        margin: "6px 0",
-        padding: 8,
-        background: "#f4f4f4",
-        borderRadius: 6,
-        fontSize: 12,
-      }}
-    >
-      <summary style={{ cursor: "pointer" }}>
-        🔧 <code>{name}</code> {result?.error ? "❌" : "✓"}
+    <details className="my-1.5 rounded-lg bg-tint border border-line-accent text-xs overflow-hidden">
+      <summary className="cursor-pointer list-none px-3 py-2 flex items-center gap-2 select-none hover:bg-surface-muted transition-colors">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+          tool
+        </span>
+        <code className="font-mono text-text-body">{name}</code>
+        <span
+          aria-label={errored ? "error" : "ok"}
+          className={errored ? "text-err" : "text-ok"}
+        >
+          {errored ? "✗" : "✓"}
+        </span>
       </summary>
-      <pre style={{ overflow: "auto", margin: "6px 0 0 0" }}>
+      <pre className="px-3 pb-3 pt-0 overflow-auto font-mono text-[11px] text-text-muted whitespace-pre-wrap break-words">
         {JSON.stringify({ input, result }, null, 2)}
       </pre>
     </details>
