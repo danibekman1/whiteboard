@@ -118,6 +118,11 @@ async def _run_query_capture_emit(
         model=model,
         system_prompt=system + base_directive + sterner_suffix,
         mcp_servers={"ev": server},
+        # tools=[] disables all built-in Claude Code tools (Bash, Read,
+        # ToolSearch, etc.). Without it, the SDK ships those by default
+        # and the model uses them instead of staying focused on calling
+        # our emit tool.
+        tools=[],
         allowed_tools=[f"mcp__ev__{tool_name}"],
         permission_mode="bypassPermissions",
     )

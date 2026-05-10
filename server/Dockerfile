@@ -23,5 +23,14 @@ COPY bank ./bank
 
 RUN uv pip install --system -e .
 
+# claude CLI refuses --dangerously-skip-permissions under root. Drop to a
+# non-root user (uid 1000) so the agent_sdk evaluator backend can spawn
+# the CLI without that guard tripping. /app/data is the bind-mounted DB
+# volume; chown so the runtime user can write coach.db.
+RUN useradd --uid 1000 --create-home --shell /bin/bash app \
+    && mkdir -p /app/data \
+    && chown -R app:app /app
+USER app
+
 EXPOSE 8000
 CMD ["python", "-m", "whiteboard_mcp.server"]

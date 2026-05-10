@@ -142,6 +142,11 @@ async function* streamAgentSdk({
       model,
       systemPrompt: system,
       mcpServers: { whiteboard: { type: "sse", url: mcpUrl } },
+      // tools: [] disables all built-in Claude Code tools (Bash, Read,
+      // ToolSearch, etc.). Without it, the SDK ships those by default
+      // and the coach gets shell access inside the container - we only
+      // want the MCP whiteboard tools.
+      tools: [],
       allowedTools: [`${MCP_PREFIX}*`],
       includePartialMessages: true,
       permissionMode: "bypassPermissions",

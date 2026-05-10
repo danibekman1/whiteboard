@@ -8,8 +8,12 @@ services:
     environment:
       CHAT_BACKEND: agent_sdk
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
+      # Empty value clears whatever the prod compose set (a metered key
+      # would beat the OAuth token in the claude CLI's auth precedence).
+      ANTHROPIC_API_KEY: ""
 
   web:
     environment:
       CHAT_BACKEND: agent_sdk
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
+      ANTHROPIC_API_KEY: ""
