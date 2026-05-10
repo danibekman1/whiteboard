@@ -16,13 +16,14 @@ import sys
 from pathlib import Path
 
 from bank.schemas import QuestionJSON
+from bank.sd_schemas import SDQuestionJSON
 
 
 def _topic_id_map(conn: sqlite3.Connection) -> dict[str, int]:
     return {r["slug"]: r["id"] for r in conn.execute("SELECT id, slug FROM topics").fetchall()}
 
 
-def _ingest_one(
+def _ingest_algo(
     conn: sqlite3.Connection,
     q: QuestionJSON,
     topics: dict[str, int],
@@ -36,12 +37,12 @@ def _ingest_one(
         print(f"  warn: unknown PRIMARY topic {primary_slug!r} for {q.slug}", file=sys.stderr)
 
     conn.execute("""
-        INSERT INTO questions (slug, title, statement, difficulty, leetcode_id, topic_id)
-        VALUES (?,?,?,?,?,?)
+        INSERT INTO questions (slug, title, statement, difficulty, leetcode_id, topic_id, type)
+        VALUES (?,?,?,?,?,?,'algo')
         ON CONFLICT(slug) DO UPDATE SET
           title=excluded.title, statement=excluded.statement,
           difficulty=excluded.difficulty, leetcode_id=excluded.leetcode_id,
-          topic_id=excluded.topic_id
+          topic_id=excluded.topic_id, type='algo'
     """, (q.slug, q.title, q.statement, q.difficulty, q.leetcode_id, primary_id))
     qid = conn.execute("SELECT id FROM questions WHERE slug=?", (q.slug,)).fetchone()["id"]
 
@@ -89,6 +90,41 @@ def _ingest_one(
         """, (qid, t_id, 1 if i == 0 else 0))
 
 
+def _ingest_sd(conn: sqlite3.Connection, q: SDQuestionJSON) -> None:
+    """Ingest one SD question. Idempotent on slug: replaces phases/checklist/
+    pushbacks on re-ingest while preserving the questions.id (so existing
+    session FKs survive)."""
+    conn.execute("""
+        INSERT INTO questions (slug, title, statement, difficulty, type)
+        VALUES (?,?,?,?,'system_design')
+        ON CONFLICT(slug) DO UPDATE SET
+          title=excluded.title, statement=excluded.statement,
+          difficulty=excluded.difficulty, type='system_design'
+    """, (q.slug, q.title, q.statement, q.difficulty))
+    qid = conn.execute("SELECT id FROM questions WHERE slug=?", (q.slug,)).fetchone()["id"]
+
+    # Replace phases (CASCADE deletes checklist via FK), then pushbacks.
+    conn.execute("DELETE FROM sd_phases WHERE question_id=?", (qid,))
+    conn.execute("DELETE FROM sd_pushbacks WHERE question_id=?", (qid,))
+
+    for ph in q.phases:
+        cur = conn.execute("""
+            INSERT INTO sd_phases (question_id, phase, ordinal) VALUES (?,?,?)
+        """, (qid, ph.phase, ph.ordinal))
+        phase_id = cur.lastrowid
+        for i, item in enumerate(ph.checklist, start=1):
+            conn.execute("""
+                INSERT INTO sd_checklist (phase_id, ordinal, item, required)
+                VALUES (?,?,?,?)
+            """, (phase_id, i, item.item, 1 if item.required else 0))
+
+    for pb in q.pushbacks:
+        conn.execute("""
+            INSERT INTO sd_pushbacks (question_id, trigger_tag, trigger_desc, response)
+            VALUES (?,?,?,?)
+        """, (qid, pb.trigger_tag, pb.trigger_desc, pb.response))
+
+
 def ingest_bank(conn: sqlite3.Connection, generated_dir: Path) -> int:
     topics = _topic_id_map(conn)
     files = sorted(generated_dir.glob("*.json"))
@@ -96,11 +132,19 @@ def ingest_bank(conn: sqlite3.Connection, generated_dir: Path) -> int:
     n = 0
     for path in files:
         try:
-            q = QuestionJSON.model_validate_json(path.read_text())
+            raw = json.loads(path.read_text())
+            # Dispatch on `type` field. Absent -> 'algo' (preserves v0.5a/v0.6
+            # generated JSON which has no `type` field).
+            qtype = raw.get("type", "algo")
+            if qtype == "system_design":
+                sd_q = SDQuestionJSON.model_validate(raw)
+                _ingest_sd(conn, sd_q)
+            else:
+                algo_q = QuestionJSON.model_validate(raw)
+                _ingest_algo(conn, algo_q, topics, unknown_secondary)
         except Exception as e:
             print(f"  skip {path.name}: schema invalid ({e})", file=sys.stderr)
             continue
-        _ingest_one(conn, q, topics, unknown_secondary)
         n += 1
     conn.commit()
     if unknown_secondary:

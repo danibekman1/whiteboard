@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS weakness_profile (
 
 -- v0.7 additions
 CREATE TABLE IF NOT EXISTS sd_phases (
-  id           INTEGER PRIMARY KEY,
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
   question_id  INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   phase        TEXT NOT NULL CHECK (phase IN
     ('clarify','estimate','high_level','deep_dive','tradeoffs')),
@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS sd_phases (
 );
 
 CREATE TABLE IF NOT EXISTS sd_checklist (
-  id        INTEGER PRIMARY KEY,
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
   phase_id  INTEGER NOT NULL REFERENCES sd_phases(id) ON DELETE CASCADE,
   ordinal   INTEGER NOT NULL,
   item      TEXT NOT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS sd_checklist (
 );
 
 CREATE TABLE IF NOT EXISTS sd_pushbacks (
-  id           INTEGER PRIMARY KEY,
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
   question_id  INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
   trigger_tag  TEXT NOT NULL,
   trigger_desc TEXT NOT NULL,
