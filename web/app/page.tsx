@@ -3,10 +3,20 @@ import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Roadmap, type RoadmapData } from "@/components/Roadmap"
 import { TopicDetail } from "@/components/TopicDetail"
+import { RoadmapTabs } from "@/components/RoadmapTabs"
+import { SDList } from "@/components/SDList"
 
 type Topic = RoadmapData["topics"][number]
+type SDQuestion = {
+  slug: string
+  title: string
+  difficulty: "easy" | "medium" | "hard"
+  scenario_tag: string
+  latest_outcome: string | null
+}
 type RoadmapPayload = RoadmapData & {
   questions: any[]
+  sd_questions: SDQuestion[]
   recommendation: any | null
   weakness: any[]
 }
@@ -55,8 +65,8 @@ export default function Home() {
     ? data.topics.find((t: Topic) => t.slug === selected) ?? null
     : null
 
-  return (
-    <div className="flex h-screen">
+  const algosBody = (
+    <div className="flex h-full">
       <div className="flex-1 border-r border-line">
         <Roadmap data={data} onSelect={onSelectTopic} selectedSlug={selected} />
       </div>
@@ -93,6 +103,14 @@ export default function Home() {
           </div>
         )}
       </aside>
+    </div>
+  )
+
+  const sdBody = <SDList questions={data.sd_questions} onStart={onStart} />
+
+  return (
+    <div className="h-screen">
+      <RoadmapTabs algos={algosBody} systemDesign={sdBody} />
     </div>
   )
 }
