@@ -7,6 +7,19 @@ import { ChatBlock, WireMessage } from "@/lib/types"
 
 type ChatMessage = { role: "user" | "assistant"; blocks: ChatBlock[] }
 
+type Phase = "clarify" | "estimate" | "high_level" | "deep_dive" | "tradeoffs"
+
+// Single source of truth for SD phase ordering. Mirrors the server-side
+// ordinals in whiteboard_mcp/sd_evaluator.py so the tracker advances
+// consistently with the evaluator's classification.
+const PHASE_ORDINAL: Record<Phase, number> = {
+  clarify: 1,
+  estimate: 2,
+  high_level: 3,
+  deep_dive: 4,
+  tradeoffs: 5,
+}
+
 type SessionMeta = {
   session_id: string
   question: QuestionMeta
@@ -87,6 +100,21 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
           // Detect record_outcome tool calls -> session ended.
           if (ev.type === "tool_call" && ev.name === "record_outcome") {
             setEnded(true)
+          }
+          // Sync session.current_phase from SD evaluator results so the phase
+          // tracker advances mid-session without a page reload. Discriminating
+          // on result.phase (rather than tool name) gracefully ignores algo
+          // tool_results, whose result shape has no phase field.
+          if (
+            ev.type === "tool_result" &&
+            ev.result &&
+            typeof ev.result === "object" &&
+            typeof ev.result.phase === "string" &&
+            ev.result.phase in PHASE_ORDINAL
+          ) {
+            const phase = ev.result.phase as Phase
+            const ordinal = PHASE_ORDINAL[phase]
+            setSession((s) => (s ? { ...s, current_phase: { phase, ordinal } } : s))
           }
         }
       }
