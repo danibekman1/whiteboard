@@ -29,6 +29,7 @@ DB_PATH = ROOT / "data" / "coach.db"
 TOPICS_SEED = ROOT / "bank" / "seed" / "topics.json"
 PREREQS_SEED = ROOT / "bank" / "seed" / "topic_prereqs.json"
 BANK_DIR = ROOT / "bank" / "generated"
+SD_CURATED_DIR = ROOT / "bank" / "seed" / "sd_curated"
 
 mcp = FastMCP("whiteboard-mcp")
 
@@ -40,7 +41,13 @@ def _bootstrap() -> None:
         n_t = ingest_topics(conn, TOPICS_SEED)
         n_e = ingest_topic_prereqs(conn, PREREQS_SEED)
         n_q = ingest_bank(conn, BANK_DIR) if BANK_DIR.exists() else 0
-        log.info("boot: %d topics, %d prereqs, %d questions ingested", n_t, n_e, n_q)
+        # Curated SD questions live in seed/ (committed to git, not generated).
+        # Without this, FastMCP boot leaves coach.db with only algo questions.
+        n_sd = ingest_bank(conn, SD_CURATED_DIR) if SD_CURATED_DIR.exists() else 0
+        log.info(
+            "boot: %d topics, %d prereqs, %d questions ingested (%d algo + %d sd)",
+            n_t, n_e, n_q + n_sd, n_q, n_sd,
+        )
         if n_q == 0:
             log.warning(
                 "bank/generated/ is empty - run `python -m bank.generate` to populate"
