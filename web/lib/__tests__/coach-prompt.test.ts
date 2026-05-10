@@ -56,3 +56,36 @@ describe("COACH_SYSTEM_PROMPT", () => {
     expect(COACH_SYSTEM_PROMPT).toMatch(/get_session/)
   })
 })
+
+describe("coach-prompt SD additions", () => {
+  it("instructs the agent to dispatch on question_type", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/question_type/i)
+    expect(COACH_SYSTEM_PROMPT).toMatch(/evaluate_sd_attempt/)
+    expect(COACH_SYSTEM_PROMPT).toMatch(/type=['"]?algo['"]?/)
+    expect(COACH_SYSTEM_PROMPT).toMatch(/type=['"]?system_design['"]?/)
+  })
+
+  it("forbids calling evaluate_attempt on SD sessions", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/never call evaluate_attempt on (an? )?sd|never call both/i)
+  })
+
+  it("notes that get_hint is unavailable for SD sessions", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/get_hint is not (available|supported) for (system_design|sd)/i)
+  })
+
+  it("contains an SD coaching discipline section", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/sd coaching discipline/i)
+    for (const move of ["press_on_missing", "advance_phase", "pushback", "nudge", "reanchor"]) {
+      expect(COACH_SYSTEM_PROMPT).toMatch(new RegExp(move))
+    }
+  })
+
+  it("instructs the coach to ask permission before advancing phase", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/ask permission|never auto-advance|asks? user permission/i)
+  })
+
+  it("preserves v0.6.1 session_id injection contract", () => {
+    expect(COACH_SYSTEM_PROMPT).toMatch(/session_id/i)
+    expect(COACH_SYSTEM_PROMPT).toMatch(/(injects?|injected)/i)
+  })
+})
