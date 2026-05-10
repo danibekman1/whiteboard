@@ -1,6 +1,26 @@
+import { query } from "@anthropic-ai/claude-agent-sdk"
 import { anthropic } from "./anthropic"
 import { callTool, getToolCatalogue } from "./mcp-client"
 import type { WireMessage } from "./types"
+
+const MCP_PREFIX = "mcp__whiteboard__"
+
+function stripPrefix(name: string): string {
+  return name.startsWith(MCP_PREFIX) ? name.slice(MCP_PREFIX.length) : name
+}
+
+function synthesizePrompt(messages: WireMessage[]): string {
+  if (messages.length === 0) return ""
+  const prior = messages.slice(0, -1)
+  const last = messages[messages.length - 1]
+  const lastText = typeof last.content === "string" ? last.content : JSON.stringify(last.content)
+  if (prior.length === 0) return lastText
+  const lines = prior.map((m) => {
+    const text = typeof m.content === "string" ? m.content : JSON.stringify(m.content)
+    return `${m.role === "user" ? "USER" : "ASSISTANT"}: ${text}`
+  })
+  return `${lines.join("\n\n")}\n\nUSER: ${lastText}`
+}
 
 export type CoachEvent =
   | { type: "text"; delta: string }
@@ -103,10 +123,66 @@ async function* streamMeteredApi({
   }
 }
 
-// Stub - implemented in Task 3.
-async function* streamAgentSdk(
-  _input: StreamCoachInput,
-): AsyncGenerator<CoachEvent> {
-  throw new Error("agent_sdk backend not yet implemented")
-  yield {} as CoachEvent
+async function* streamAgentSdk({
+  system, messages, model,
+}: StreamCoachInput): AsyncGenerator<CoachEvent> {
+  const startedAt = Date.now()
+  const mcpUrl = process.env.MCP_SERVER_URL
+  if (!mcpUrl) throw new Error("MCP_SERVER_URL is not set (agent_sdk backend)")
+
+  // Per content_block index, accumulate input_json_delta until content_block_stop.
+  // Then emit one tool_call with the parsed input. The SDK auto-executes tools
+  // via the MCP server; we never see tool_result events on this path.
+  const toolUseInProgress: Record<number, { id: string; name: string; jsonBuf: string }> = {}
+  let toolCalls = 0
+
+  for await (const msg of (query as any)({
+    prompt: synthesizePrompt(messages),
+    options: {
+      model,
+      systemPrompt: system,
+      mcpServers: { whiteboard: { type: "sse", url: mcpUrl } },
+      allowedTools: [`${MCP_PREFIX}*`],
+      includePartialMessages: true,
+      permissionMode: "bypassPermissions",
+    },
+  })) {
+    if (msg.type !== "stream_event") continue
+    const ev = msg.event
+    if (ev?.type === "content_block_delta" && ev.delta?.type === "text_delta") {
+      yield { type: "text", delta: ev.delta.text as string }
+      continue
+    }
+    if (ev?.type === "content_block_start" && ev.content_block?.type === "tool_use") {
+      toolUseInProgress[ev.index] = {
+        id: ev.content_block.id,
+        name: stripPrefix(ev.content_block.name),
+        jsonBuf: "",
+      }
+      continue
+    }
+    if (ev?.type === "content_block_delta" && ev.delta?.type === "input_json_delta") {
+      const slot = toolUseInProgress[ev.index]
+      if (slot) slot.jsonBuf += ev.delta.partial_json ?? ""
+      continue
+    }
+    if (ev?.type === "content_block_stop") {
+      const slot = toolUseInProgress[ev.index]
+      if (slot) {
+        let input: unknown = {}
+        try { input = JSON.parse(slot.jsonBuf || "{}") } catch { input = { _raw: slot.jsonBuf } }
+        toolCalls++
+        yield { type: "tool_call", id: slot.id, name: slot.name, input }
+        delete toolUseInProgress[ev.index]
+      }
+    }
+  }
+
+  yield {
+    type: "done",
+    assistant: [],
+    iters: 1,
+    total_ms: Date.now() - startedAt,
+    tool_calls: toolCalls,
+  }
 }
