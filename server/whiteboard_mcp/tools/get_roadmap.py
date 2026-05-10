@@ -66,6 +66,7 @@ def get_roadmap(
              ORDER BY ended_at DESC LIMIT 1) AS latest_outcome
         FROM questions q
         LEFT JOIN topics t ON t.id = q.topic_id
+        WHERE q.type = 'algo'
         ORDER BY q.slug
         """
     ).fetchall()
@@ -81,6 +82,27 @@ def get_roadmap(
             "status": st,
             "starred": st == "revisit_flagged",
         })
+
+    # SD questions live in the same `questions` table but are surfaced in a
+    # separate array - the algo `questions[]` above is filtered to type='algo'
+    # so SD slugs don't accidentally appear in the algo grid.
+    DIFF_ORDER = {"easy": 0, "medium": 1, "hard": 2}
+    sd_rows = conn.execute(
+        """
+        SELECT q.slug, q.title, q.difficulty, q.scenario_tag,
+          (SELECT outcome FROM sessions
+             WHERE question_id = q.id AND outcome IS NOT NULL
+             ORDER BY ended_at DESC LIMIT 1) AS latest_outcome
+        FROM questions q
+        WHERE q.type = 'system_design'
+        """
+    ).fetchall()
+    sd_questions = [
+        {"slug": r["slug"], "title": r["title"], "difficulty": r["difficulty"],
+         "scenario_tag": r["scenario_tag"], "latest_outcome": r["latest_outcome"]}
+        for r in sd_rows
+    ]
+    sd_questions.sort(key=lambda q: (DIFF_ORDER.get(q["difficulty"], 99), q["slug"]))
 
     rec = recommend_next(conn, focus_topic_slug=focus_topic_slug)
     recommendation = (
@@ -99,6 +121,7 @@ def get_roadmap(
         "topics": topics_out,
         "edges": edges,
         "questions": questions_out,
+        "sd_questions": sd_questions,
         "recommendation": recommendation,
         "weakness": weakness,
     }
