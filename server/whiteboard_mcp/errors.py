@@ -37,3 +37,7 @@ def no_current_step() -> dict:
 
 def invalid_outcome(got: Any, valid: list[str]) -> dict:
     return {"error": "invalid_outcome", "got": got, "valid": valid}
+
+
+def wrong_question_type(got: str, expected: str) -> dict:
+    return {"error": "wrong_question_type", "got": got, "expected": expected}
