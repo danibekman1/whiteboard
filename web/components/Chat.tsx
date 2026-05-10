@@ -3,16 +3,38 @@ import { useEffect, useRef, useState } from "react"
 import { Composer } from "./Composer"
 import { Message } from "./Message"
 import { AlgoQuestionPane } from "./AlgoQuestionPane"
+import { SDQuestionPane } from "./SDQuestionPane"
 import { ChatBlock, WireMessage } from "@/lib/types"
 
 type ChatMessage = { role: "user" | "assistant"; blocks: ChatBlock[] }
 
+type Phase = "clarify" | "estimate" | "high_level" | "deep_dive" | "tradeoffs"
+
+type AlgoQuestion = {
+  type: "algo"
+  slug: string
+  title: string
+  statement: string
+  difficulty: "easy" | "medium" | "hard"
+}
+
+type SDQuestion = {
+  type: "system_design"
+  slug: string
+  title: string
+  statement: string
+  difficulty: "easy" | "medium" | "hard"
+  scenario_tag: string
+}
+
 type SessionMeta = {
   session_id: string
-  question: { slug: string; title: string; statement: string; difficulty: "easy" | "medium" | "hard" }
+  question: AlgoQuestion | SDQuestion
   current_step_ordinal: number | null
+  current_phase: { phase: Phase; ordinal: number } | null
   attempts_count: number
   outcome: string | null
+  pushbacks?: { trigger_tag: string; trigger_desc: string; response: string }[]
 }
 
 export function Chat({ sessionId }: { sessionId?: string } = {}) {
@@ -59,7 +81,12 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: text, history, session_id: sessionId }),
+        body: JSON.stringify({
+          message: text,
+          history,
+          session_id: sessionId,
+          question_type: session?.question.type,
+        }),
       })
       if (!res.body) throw new Error("no body")
       const reader = res.body.getReader()
@@ -124,7 +151,15 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
           </button>
         </header>
       )}
-      {session && <AlgoQuestionPane question={session.question} />}
+      {session && session.question.type === "system_design" && (
+        <SDQuestionPane
+          question={session.question}
+          currentPhase={session.current_phase}
+        />
+      )}
+      {session && session.question.type === "algo" && (
+        <AlgoQuestionPane question={session.question} />
+      )}
       {sessionError && (
         <div className="bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm px-4 py-3">
           {sessionError}
