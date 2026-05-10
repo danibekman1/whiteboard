@@ -112,6 +112,44 @@ web/                Next.js 16 + React 19 + TS UI
                     Roadmap, ProgressDots, QuestionCard, TopicDetail
 ```
 
+## Dev backend (Claude Code subscription auth)
+
+Default behavior uses the metered Anthropic API (`ANTHROPIC_API_KEY`).
+For dev runs you can route LLM calls through your Claude Code Team
+subscription instead, costing zero metered tokens.
+
+### One-time setup
+
+```
+# 1. Generate a 1-year OAuth token bound to your subscription:
+claude setup-token
+
+# 2. Add it (and the backend flag) to .env:
+echo "CHAT_BACKEND=agent_sdk" >> .env
+echo "CLAUDE_CODE_OAUTH_TOKEN=$(claude setup-token | tail -1)" >> .env
+```
+
+### Running
+
+```
+# Use the dev compose overlay:
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+# Or via npm (from web/):
+npm run dev:docker
+```
+
+### Reverting to metered API
+
+Unset `CHAT_BACKEND` (or set it to `api`) in `.env` and run plain
+`docker compose up --build`. No code change required.
+
+### Token rotation
+
+OAuth tokens last 1 year. Re-run `claude setup-token` and update
+`CLAUDE_CODE_OAUTH_TOKEN` in `.env`. Failures surface as a clear setup
+hint, not a 500.
+
 ## Tests
 
 ```
