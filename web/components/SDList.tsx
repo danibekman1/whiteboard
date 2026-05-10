@@ -1,5 +1,5 @@
 "use client"
-import { statusPillClass } from "@/lib/status-colors"
+import { statusPillClass, type Outcome } from "@/lib/status-colors"
 
 type Difficulty = "easy" | "medium" | "hard"
 
@@ -8,7 +8,7 @@ type SDQuestion = {
   title: string
   difficulty: Difficulty
   scenario_tag: string
-  latest_outcome: string | null
+  latest_outcome: Outcome | null
 }
 
 const DIFF_ORDER: Difficulty[] = ["easy", "medium", "hard"]

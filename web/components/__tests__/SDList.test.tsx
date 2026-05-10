@@ -37,3 +37,16 @@ test("renders empty state when no SD questions", () => {
   render(<SDList questions={[]} onStart={() => {}} />)
   expect(screen.getByText(/no system design questions/i)).toBeInTheDocument()
 })
+
+test("renders the latest_outcome pill with the matching pill class", () => {
+  render(<SDList questions={SD_QUESTIONS} onStart={() => {}} />)
+  // Row with outcome='unaided' (URL Shortener) shows the outcome text inside
+  // a pill that uses the green statusPillClass for 'unaided'.
+  const pill = screen.getByText("unaided")
+  expect(pill).toBeInTheDocument()
+  // Sanity: the green class for 'unaided' is on the pill element.
+  expect(pill.className).toMatch(/bg-green-100/)
+  // Rows without an outcome (Parking Lot, Rate Limiter) have no pill.
+  expect(screen.queryByText("partial")).not.toBeInTheDocument()
+  expect(screen.queryByText("with_hints")).not.toBeInTheDocument()
+})

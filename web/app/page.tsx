@@ -5,6 +5,7 @@ import { Roadmap, type RoadmapData } from "@/components/Roadmap"
 import { TopicDetail } from "@/components/TopicDetail"
 import { RoadmapTabs } from "@/components/RoadmapTabs"
 import { SDList } from "@/components/SDList"
+import type { Outcome } from "@/lib/status-colors"
 
 type Topic = RoadmapData["topics"][number]
 type SDQuestion = {
@@ -12,7 +13,7 @@ type SDQuestion = {
   title: string
   difficulty: "easy" | "medium" | "hard"
   scenario_tag: string
-  latest_outcome: string | null
+  latest_outcome: Outcome | null
 }
 type RoadmapPayload = RoadmapData & {
   questions: any[]
@@ -106,7 +107,10 @@ export default function Home() {
     </div>
   )
 
-  const sdBody = <SDList questions={data.sd_questions} onStart={onStart} />
+  // Defensive read: if a stale browser tab hits a server that isn't returning
+  // sd_questions yet (e.g. mid-deploy), fall back to empty so SDList renders
+  // its empty-state instead of crashing on .length.
+  const sdBody = <SDList questions={data.sd_questions ?? []} onStart={onStart} />
 
   return (
     <div className="h-screen">
