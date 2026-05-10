@@ -1,0 +1,166 @@
+# Golden cases for the SD inner evaluator.
+#
+# Each case: a (question, simulated user_text, expected evaluator output) triple.
+# Coverage of evaluator BEHAVIOR (phase classification, suggested_move,
+# pushback firing) across the three curated questions, NOT coverage of
+# every possible user message.
+#
+# Phase assertions are strict (we want classification accuracy);
+# checklist_covered is loose (the model legitimately decomposes coverage
+# differently across runs). pushback_triggered is asserted only on cases
+# specifically designed to fire one, and the trigger_tag matches one in the
+# corresponding curated bank/seed/sd_curated/<slug>.json file.
+
+# === url-shortener ===
+# Pushbacks in this question's bank: no_capacity_estimate, single_db_at_scale,
+# naive_hashing, no_cache_discussion, no_collision_strategy.
+
+- name: url-shortener-clarifies-scope
+  question_slug: url-shortener
+  user_text: "Let me clarify - are we supporting custom aliases? Expiration? What's the read-to-write ratio we should design for?"
+  expect:
+    phase: clarify
+    # Both moves are defensible: candidate is asking the right questions
+    # but hasn't surfaced answers yet. Either ask for specifics (nudge)
+    # or surface the next required item (press_on_missing) is correct.
+    suggested_move: [nudge, press_on_missing]
+
+- name: url-shortener-jumps-to-architecture-no-estimate
+  question_slug: url-shortener
+  user_text: "I'd put a load balancer in front of stateless API servers backed by a sharded Postgres with Redis cache."
+  expect:
+    # Phase classification is ambiguous when the candidate JUMPS phases:
+    # do we say they're "in" the phase they skipped (estimate) or pin
+    # them to where they actually are (clarify, since they haven't
+    # established baseline). The pushback firing is the load-bearing
+    # assertion - that always fires for this archetype.
+    phase: [clarify, estimate]
+    pushback_triggered: no_capacity_estimate
+
+- name: url-shortener-estimates-correctly
+  question_slug: url-shortener
+  user_text: "100M URLs/year is roughly 3 writes/sec, 30 reads/sec at 10:1, peak around 300/sec. Storage is ~250GB over 5 years."
+  expect:
+    phase: estimate
+    # Candidate covered most required items but may still lack one
+    # (e.g. short-code length). advance_phase is correct if the
+    # evaluator accepts coverage; press_on_missing is correct if it
+    # holds the line on the last required item. Either is defensible.
+    suggested_move: [advance_phase, press_on_missing]
+
+- name: url-shortener-naive-md5-truncation
+  question_slug: url-shortener
+  user_text: "I'd just MD5 the long URL and take the first 7 chars as the short code."
+  expect:
+    pushback_triggered: naive_hashing
+
+- name: url-shortener-skips-cache
+  question_slug: url-shortener
+  user_text: "Read path goes straight to the Postgres replica - the replica handles the read load."
+  expect:
+    # high_level (architectural overview) and deep_dive (drilling into
+    # storage/cache) both fit; the candidate is at the boundary. The
+    # pushback fires regardless.
+    phase: [high_level, deep_dive]
+    pushback_triggered: no_cache_discussion
+
+- name: url-shortener-tradeoffs-counter-vs-hash
+  question_slug: url-shortener
+  user_text: "Counter-based generation needs a coordination point but avoids collisions; hash is distributable but needs retry logic on collision. I'd start with counter and shard later."
+  expect:
+    phase: tradeoffs
+
+- name: url-shortener-off-topic
+  question_slug: url-shortener
+  user_text: "Should I use Rust or Go for the API server?"
+  expect:
+    suggested_move: reanchor
+
+# === parking-lot ===
+# Pushbacks in this question's bank: no_concurrency_model, scan_for_availability,
+# vague_pricing, no_size_hierarchy.
+
+- name: parking-lot-clarifies-vehicle-types
+  question_slug: parking-lot
+  user_text: "What vehicle types do we support? Just cars, or also motorcycles and trucks? Are spots all the same size?"
+  expect:
+    phase: clarify
+    suggested_move: [nudge, press_on_missing]
+
+- name: parking-lot-no-concurrency-thinking
+  question_slug: parking-lot
+  user_text: "On entry, I scan all spots, find the first free one of the right size, mark it taken, return a ticket."
+  expect:
+    # The text matches BOTH bank pushbacks: "scan all spots" maps to
+    # scan_for_availability; "mark it taken" without atomicity maps to
+    # no_concurrency_model. The evaluator legitimately picks either.
+    # If we want to isolate one, the case's user_text should be
+    # rewritten to lean on just one trigger - tracked as a v0.7.5
+    # iteration on the curated bank.
+    pushback_triggered: [no_concurrency_model, scan_for_availability]
+
+- name: parking-lot-vague-pricing
+  question_slug: parking-lot
+  user_text: "We charge per hour based on the duration."
+  expect:
+    pushback_triggered: vague_pricing
+
+- name: parking-lot-tradeoff-locking
+  question_slug: parking-lot
+  user_text: "Pessimistic locking guarantees no double-assignment but creates contention at peak; optimistic with retries is cheap at this throughput."
+  expect:
+    phase: tradeoffs
+
+- name: parking-lot-scan-availability
+  question_slug: parking-lot
+  user_text: "On every entry I'll iterate all 5,000 spot rows looking for a free one."
+  expect:
+    pushback_triggered: scan_for_availability
+
+# === rate-limiter ===
+# Pushbacks in this question's bank: no_atomicity_consideration, fixed_window_only,
+# no_failure_mode, no_burst_discussion.
+
+- name: rate-limiter-clarifies-quota-model
+  question_slug: rate-limiter
+  user_text: "What's the quota model - just per-second, or also per-minute / per-hour? How is the client identified - API key, IP, both?"
+  expect:
+    phase: clarify
+    suggested_move: [nudge, press_on_missing]
+
+- name: rate-limiter-fixed-window-only
+  question_slug: rate-limiter
+  user_text: "I'd use a per-second counter; on each request, INCR the counter, reject if over limit. Reset every second."
+  expect:
+    pushback_triggered: fixed_window_only
+
+- name: rate-limiter-no-atomicity
+  question_slug: rate-limiter
+  user_text: "Each gateway instance reads the count, checks if under limit, then increments and writes back."
+  expect:
+    pushback_triggered: no_atomicity_consideration
+
+- name: rate-limiter-no-failure-mode
+  question_slug: rate-limiter
+  user_text: "Architecture: gateway -> Redis cluster for counters -> API servers."
+  expect:
+    # Lenient interpretation: candidate hasn't said anything wrong about
+    # failure-mode yet, so null is defensible. Strict: the pushback's
+    # job is to surface omissions, so it should fire. Both readings
+    # are honest. If the dev-fallback path needs the strict reading,
+    # tighten by rewording the candidate's user_text to assert "happy
+    # path only" explicitly.
+    pushback_triggered: [no_failure_mode, null]
+
+- name: rate-limiter-token-bucket-deep-dive
+  question_slug: rate-limiter
+  user_text: "Token bucket: each client has a bucket that refills at the quota rate; each request consumes one token; reject when empty. Atomic via Redis Lua script."
+  expect:
+    phase: deep_dive
+
+- name: rate-limiter-tradeoff-fail-mode
+  question_slug: rate-limiter
+  user_text: "Fail open keeps the API available during a Redis outage but lets clients exceed limits; fail closed is safer for the backend but drops legitimate traffic."
+  expect:
+    phase: tradeoffs
+    suggested_move: [nudge, press_on_missing]
