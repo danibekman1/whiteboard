@@ -115,40 +115,46 @@ web/                Next.js 16 + React 19 + TS UI
 ## Dev backend (Claude Code subscription auth)
 
 Default behavior uses the metered Anthropic API (`ANTHROPIC_API_KEY`).
-For dev runs you can route LLM calls through your Claude Code Team
-subscription instead, costing zero metered tokens.
+You can also route LLM calls through your Claude Code subscription
+instead, costing zero metered tokens. Each user authenticates with
+their own account; the token bills to whoever ran setup.
 
-### One-time setup
+**Prerequisite:** a Claude Code Team / Pro / Max plan (any tier with
+Claude Code access). No `ANTHROPIC_API_KEY` needed.
+
+### Quick start (Docker only, no host install)
 
 ```
-# 1. Generate a 1-year OAuth token bound to your subscription:
-claude setup-token
+./scripts/setup-dev-token.sh
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
 
-# 2. Add it (and the backend flag) to .env:
+The script borrows the `claude` CLI from the dev image to run the
+OAuth flow - you never have to install Node or Claude Code on the
+host. It writes `CHAT_BACKEND=agent_sdk` and a 1-year
+`CLAUDE_CODE_OAUTH_TOKEN` to `.env`.
+
+### Manual setup (if Claude Code is already on your host)
+
+```
 echo "CHAT_BACKEND=agent_sdk" >> .env
 echo "CLAUDE_CODE_OAUTH_TOKEN=$(claude setup-token | tail -1)" >> .env
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
-### Running
+Or run via npm (from `web/`): `npm run dev:docker`.
 
-```
-# Use the dev compose overlay:
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+### Reverting to the metered API
 
-# Or via npm (from web/):
-npm run dev:docker
-```
-
-### Reverting to metered API
-
-Unset `CHAT_BACKEND` (or set it to `api`) in `.env` and run plain
+Delete the `CHAT_BACKEND` and `CLAUDE_CODE_OAUTH_TOKEN` lines from
+`.env`, set your `ANTHROPIC_API_KEY`, and run plain
 `docker compose up --build`. No code change required.
 
 ### Token rotation
 
-OAuth tokens last 1 year. Re-run `claude setup-token` and update
-`CLAUDE_CODE_OAUTH_TOKEN` in `.env`. Failures surface as a clear setup
-hint, not a 500.
+OAuth tokens last 1 year. Re-run `./scripts/setup-dev-token.sh`
+(after deleting the old `CLAUDE_CODE_OAUTH_TOKEN` line) to mint a
+fresh one. Auth failures surface as a clear setup hint, not a 500.
 
 ## Tests
 
