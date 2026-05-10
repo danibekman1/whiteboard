@@ -129,6 +129,9 @@ _QUESTIONS_NEW_COLUMNS = [  # v0.5a
     # the API surface.
     ("type",        "TEXT NOT NULL DEFAULT 'algo' "
                     "CHECK (type IN ('algo', 'system_design'))"),
+    # v0.7: SD-only one-line scenario tag, surfaced on roadmap and chat UI.
+    # Nullable for algo rows.
+    ("scenario_tag", "TEXT"),
 ]
 
 _SESSIONS_NEW_COLUMNS = [  # v0.6

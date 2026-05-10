@@ -100,12 +100,13 @@ def _ingest_sd(conn: sqlite3.Connection, q: SDQuestionJSON) -> None:
     pushbacks on re-ingest while preserving the questions.id (so existing
     session FKs survive)."""
     conn.execute("""
-        INSERT INTO questions (slug, title, statement, difficulty, type)
-        VALUES (?,?,?,?,'system_design')
+        INSERT INTO questions (slug, title, statement, difficulty, type, scenario_tag)
+        VALUES (?,?,?,?,'system_design',?)
         ON CONFLICT(slug) DO UPDATE SET
           title=excluded.title, statement=excluded.statement,
-          difficulty=excluded.difficulty, type='system_design'
-    """, (q.slug, q.title, q.statement, q.difficulty))
+          difficulty=excluded.difficulty, type='system_design',
+          scenario_tag=excluded.scenario_tag
+    """, (q.slug, q.title, q.statement, q.difficulty, q.scenario_tag))
     qid = conn.execute("SELECT id FROM questions WHERE slug=?", (q.slug,)).fetchone()["id"]
 
     # Replace phases (CASCADE deletes checklist via FK), then pushbacks.

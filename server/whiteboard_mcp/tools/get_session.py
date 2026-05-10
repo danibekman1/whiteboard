@@ -1,19 +1,67 @@
 """get_session tool: read-only metadata about an active session.
 
-Returns the question (slug/title/statement/difficulty), the candidate's
-current step ordinal, count of attempts, and outcome (null until session
-ends). Canonical steps are never returned - the outer agent must not be
-able to leak them via this tool either."""
+For algo sessions, returns the question (slug/title/statement/difficulty/type),
+current step ordinal, attempts count, and outcome.
+
+For SD sessions, additionally returns scenario_tag, the question's pushback
+library (so the outer coach has them in-context for adversarial moves), and
+the current phase derived from the latest attempt's evaluator JSON.
+
+Canonical reasoning content (algo steps, SD checklist) is never returned -
+the outer agent must not be able to leak it via this tool either."""
 from __future__ import annotations
+import json
 import sqlite3
 
 from whiteboard_mcp.errors import not_found
+
+# Phase-to-ordinal map. Kept aligned with sd_phases.ordinal CHECK constraint
+# (1..5) and the Phase Literal in sd_evaluator.py - if the phase set ever
+# changes, both sites need updating.
+_PHASE_ORDINAL = {
+    "clarify": 1, "estimate": 2, "high_level": 3,
+    "deep_dive": 4, "tradeoffs": 5,
+}
+
+
+def _current_phase_from_attempts(conn: sqlite3.Connection, session_id: str) -> dict | None:
+    """Read the latest attempt's evaluator_json and pull the phase. Returns
+    {phase, ordinal} or None if no attempts yet / parse failure."""
+    row = conn.execute(
+        "SELECT evaluator_json FROM attempts WHERE session_id = ? "
+        "ORDER BY ordinal DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    if not row:
+        return None
+    try:
+        ev = json.loads(row["evaluator_json"])
+    except (json.JSONDecodeError, TypeError):
+        return None
+    phase = ev.get("phase")
+    if not phase:
+        return None
+    ordinal = _PHASE_ORDINAL.get(phase)
+    if ordinal is None:
+        return None
+    return {"phase": phase, "ordinal": ordinal}
+
+
+def _load_pushbacks(conn: sqlite3.Connection, question_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT trigger_tag, trigger_desc, response FROM sd_pushbacks "
+        "WHERE question_id = ? ORDER BY id",
+        (question_id,),
+    ).fetchall()
+    return [{"trigger_tag": r["trigger_tag"],
+             "trigger_desc": r["trigger_desc"],
+             "response": r["response"]} for r in rows]
 
 
 def get_session(conn: sqlite3.Connection, session_id: str) -> dict:
     row = conn.execute("""
         SELECT s.id AS session_id, s.outcome, s.current_step_id,
-               q.slug, q.title, q.statement, q.difficulty
+               q.id AS question_id, q.slug, q.title, q.statement, q.difficulty, q.type
         FROM sessions s
         JOIN questions q ON q.id = s.question_id
         WHERE s.id = ?
@@ -33,15 +81,33 @@ def get_session(conn: sqlite3.Connection, session_id: str) -> dict:
         "SELECT COUNT(*) AS c FROM attempts WHERE session_id = ?", (session_id,)
     ).fetchone()["c"]
 
-    return {
+    question: dict = {
+        "slug": row["slug"],
+        "title": row["title"],
+        "statement": row["statement"],
+        "difficulty": row["difficulty"],
+        "type": row["type"],
+    }
+
+    payload: dict = {
         "session_id": row["session_id"],
-        "question": {
-            "slug": row["slug"],
-            "title": row["title"],
-            "statement": row["statement"],
-            "difficulty": row["difficulty"],
-        },
+        "question": question,
         "current_step_ordinal": current_step_ordinal,
+        "current_phase": None,
         "attempts_count": attempts_count,
         "outcome": row["outcome"],
     }
+
+    if row["type"] == "system_design":
+        # Re-query for SD-specific column. Keeping the main JOIN minimal (no
+        # LEFT JOIN on sd_*) so the algo path stays identical.
+        sd_row = conn.execute(
+            "SELECT scenario_tag FROM questions WHERE id = ?",
+            (row["question_id"],),
+        ).fetchone()
+        if sd_row and sd_row["scenario_tag"]:
+            question["scenario_tag"] = sd_row["scenario_tag"]
+        payload["pushbacks"] = _load_pushbacks(conn, row["question_id"])
+        payload["current_phase"] = _current_phase_from_attempts(conn, session_id)
+
+    return payload
