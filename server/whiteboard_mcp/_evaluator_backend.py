@@ -11,9 +11,16 @@ The api path is unconditionally available (uses ANTHROPIC_API_KEY). The
 agent_sdk path requires CLAUDE_CODE_OAUTH_TOKEN.
 """
 from __future__ import annotations
+import asyncio
 import os
 from typing import Any, TypeVar
 
+from claude_agent_sdk import (
+    ClaudeAgentOptions,
+    create_sdk_mcp_server,
+    query,
+    tool,
+)
 from pydantic import BaseModel
 
 from whiteboard_mcp._anthropic import get_anthropic_client
@@ -74,7 +81,66 @@ def _evaluate_metered(
     raise ValueError("evaluator returned no tool_use block")
 
 
+async def _run_query_capture_emit(
+    system: str, user_text: str, output_schema: type[T],
+    tool_name: str, model: str, sterner: bool,
+) -> dict | None:
+    """Run one Agent SDK query() with an in-process emit tool registered.
+    Returns the captured tool_input dict, or None if the model didn't call
+    emit.
+
+    The schema's properties are exposed via the tool's input_schema so the
+    model knows the expected shape. This is best-effort enforcement (no
+    tool_choice equivalent in Agent SDK) - the system prompt's directive
+    that the model MUST call the tool is the load-bearing piece."""
+    captured: dict | None = None
+
+    @tool(
+        tool_name,
+        f"Emit a structured {output_schema.__name__} payload.",
+        output_schema.model_json_schema(),
+    )
+    async def emit(payload: dict) -> dict:
+        nonlocal captured
+        captured = payload
+        return payload
+
+    server = create_sdk_mcp_server(name="ev", tools=[emit])
+    sterner_suffix = (
+        "\n\nYour previous response did not call the emit tool. Call it now."
+        if sterner else ""
+    )
+    base_directive = (
+        f"\n\nYou MUST call the {tool_name} tool with your structured output. "
+        f"Do not write prose."
+    )
+    options = ClaudeAgentOptions(
+        model=model,
+        system_prompt=system + base_directive + sterner_suffix,
+        mcp_servers={"ev": server},
+        allowed_tools=[f"mcp__ev__{tool_name}"],
+        permission_mode="bypassPermissions",
+    )
+    async for _msg in query(prompt=user_text, options=options):
+        # The @tool decorator captures the input via the closure above; we
+        # don't need to inspect msg here. Iteration drains the generator so
+        # the SDK can clean up its subprocess.
+        pass
+    return captured
+
+
 def _evaluate_agent_sdk(
-    _system: str, _user_text: str, _output_schema: type[T], _tool_name: str, _model: str,
+    system: str, user_text: str, output_schema: type[T],
+    tool_name: str, model: str,
 ) -> T:
-    raise NotImplementedError("agent_sdk evaluator backend not yet implemented")
+    captured = asyncio.run(
+        _run_query_capture_emit(system, user_text, output_schema, tool_name, model, sterner=False)
+    )
+    if captured is None:
+        # Retry once with a sterner prompt suffix.
+        captured = asyncio.run(
+            _run_query_capture_emit(system, user_text, output_schema, tool_name, model, sterner=True)
+        )
+    if captured is None:
+        raise ValueError(f"evaluator did not call emit (tool_name={tool_name})")
+    return output_schema.model_validate(captured)
