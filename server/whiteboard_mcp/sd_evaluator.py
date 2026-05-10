@@ -164,8 +164,9 @@ def evaluate(
     model: str | None = None,
 ) -> SDEvaluatorOutput:
     """Run the inner SD evaluator. Raises ValueError if the model returned no
-    tool_use block; raises pydantic.ValidationError on malformed payloads;
-    raises anthropic.APITimeoutError if the call exceeds EVALUATOR_TIMEOUT_S.
+    tool_use block; raises pydantic.ValidationError on malformed payloads.
+    Timeout: api backend raises anthropic.APITimeoutError; agent_sdk
+    backend raises asyncio.TimeoutError - both per attempt, EVALUATOR_TIMEOUT_S.
     The caller is responsible for translating these to MCP error dicts.
 
     `client` is honored on the metered (api) backend; ignored on the

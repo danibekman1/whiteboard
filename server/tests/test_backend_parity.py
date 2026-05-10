@@ -38,6 +38,7 @@ def test_metered_backend_returns_evaluator_output(monkeypatch):
         output_schema=EvaluatorOutput,
         tool_name="submit_evaluation",
         model="claude-haiku-4-5-20251001",   # cheap; this is a parity fixture, not pedagogy
+        client=None,
     )
     assert isinstance(out, EvaluatorOutput)
     assert out.suggested_move in {"nudge", "advance", "reanchor", "wrap_up"}
@@ -52,6 +53,7 @@ def test_agent_sdk_backend_returns_evaluator_output(monkeypatch):
         output_schema=EvaluatorOutput,
         tool_name="submit_evaluation",
         model="claude-haiku-4-5-20251001",
+        client=None,
     )
     assert isinstance(out, EvaluatorOutput)
     assert out.suggested_move in {"nudge", "advance", "reanchor", "wrap_up"}

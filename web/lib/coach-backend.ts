@@ -1,4 +1,4 @@
-import { query } from "@anthropic-ai/claude-agent-sdk"
+import { query, type Options as AgentSdkOptions } from "@anthropic-ai/claude-agent-sdk"
 import { anthropic } from "./anthropic"
 import { callTool, getToolCatalogue } from "./mcp-client"
 import type { WireMessage } from "./types"
@@ -25,6 +25,11 @@ function synthesizePrompt(messages: WireMessage[]): string {
 export type CoachEvent =
   | { type: "text"; delta: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }
+  // tool_result is emitted only on the metered (api) backend - that's
+  // where we own the loop and run callTool ourselves. The agent_sdk
+  // backend lets the SDK auto-execute MCP tools, so the result never
+  // lands on the wire we translate from. Browsers should render the
+  // pill from the tool_call alone on the SDK path.
   | { type: "tool_result"; tool_use_id: string; result: unknown; ms: number }
   | { type: "done"; assistant: any[]; iters: number; total_ms: number; tool_calls: number }
   | { type: "error"; message: string }
@@ -43,11 +48,15 @@ export async function* streamCoach(
   input: StreamCoachInput,
 ): AsyncGenerator<CoachEvent> {
   const backend = process.env.CHAT_BACKEND ?? "api"
+  if (backend === "api") {
+    yield* streamMeteredApi(input)
+    return
+  }
   if (backend === "agent_sdk") {
     yield* streamAgentSdk(input)
     return
   }
-  yield* streamMeteredApi(input)
+  throw new Error(`CHAT_BACKEND must be 'api' or 'agent_sdk', got '${backend}'`)
 }
 
 async function* streamMeteredApi({
@@ -57,13 +66,17 @@ async function* streamMeteredApi({
   const tools = await getToolCatalogue()
   let totalToolCalls = 0
   let cleanExit = false
+  // Local copy: route.ts owns the input array and may pass a shared
+  // reference. We push assistant + tool_result turns onto our copy so
+  // the next iteration sees them, without mutating the caller's array.
+  const turns: WireMessage[] = [...messages]
 
   for (let iter = 0; iter < maxIters; iter++) {
     const stream = anthropic.messages.stream({
       model,
       system,
       tools,
-      messages,
+      messages: turns,
       max_tokens: 1024,
     })
 
@@ -77,7 +90,7 @@ async function* streamMeteredApi({
     }
     const final = await stream.finalMessage()
     const collected: any[] = [...final.content]
-    messages.push({ role: "assistant", content: collected })
+    turns.push({ role: "assistant", content: collected })
 
     const toolUses = collected.filter((b: any) => b.type === "tool_use")
     for (const tu of toolUses as any[]) {
@@ -115,7 +128,7 @@ async function* streamMeteredApi({
         is_error: isError,
       })
     }
-    messages.push({ role: "user", content: results })
+    turns.push({ role: "user", content: results })
   }
 
   if (!cleanExit) {
@@ -136,24 +149,23 @@ async function* streamAgentSdk({
   const toolUseInProgress: Record<number, { id: string; name: string; jsonBuf: string }> = {}
   let toolCalls = 0
 
-  for await (const msg of (query as any)({
-    prompt: synthesizePrompt(messages),
-    options: {
-      model,
-      systemPrompt: system,
-      mcpServers: { whiteboard: { type: "sse", url: mcpUrl } },
-      // tools: [] disables all built-in Claude Code tools (Bash, Read,
-      // ToolSearch, etc.). Without it, the SDK ships those by default
-      // and the coach gets shell access inside the container - we only
-      // want the MCP whiteboard tools.
-      tools: [],
-      allowedTools: [`${MCP_PREFIX}*`],
-      includePartialMessages: true,
-      permissionMode: "bypassPermissions",
-    },
-  })) {
+  const options: AgentSdkOptions = {
+    model,
+    systemPrompt: system,
+    mcpServers: { whiteboard: { type: "sse", url: mcpUrl } },
+    // tools: [] disables all built-in Claude Code tools (Bash, Read,
+    // ToolSearch, etc.). Without it, the SDK ships those by default
+    // and the coach gets shell access inside the container - we only
+    // want the MCP whiteboard tools.
+    tools: [],
+    allowedTools: [`${MCP_PREFIX}*`],
+    includePartialMessages: true,
+    permissionMode: "bypassPermissions",
+  }
+
+  for await (const msg of query({ prompt: synthesizePrompt(messages), options })) {
     if (msg.type !== "stream_event") continue
-    const ev = msg.event
+    const ev: any = (msg as any).event
     if (ev?.type === "content_block_delta" && ev.delta?.type === "text_delta") {
       yield { type: "text", delta: ev.delta.text as string }
       continue
@@ -174,8 +186,22 @@ async function* streamAgentSdk({
     if (ev?.type === "content_block_stop") {
       const slot = toolUseInProgress[ev.index]
       if (slot) {
-        let input: unknown = {}
-        try { input = JSON.parse(slot.jsonBuf || "{}") } catch { input = { _raw: slot.jsonBuf } }
+        const raw = slot.jsonBuf || "{}"
+        let input: unknown
+        try {
+          input = JSON.parse(raw)
+        } catch {
+          // Surface malformed tool input as a coach error event rather
+          // than silently shipping a synthetic {_raw} block - the
+          // metered path never produces that shape, and a downstream
+          // ToolCallPill won't render it as expected.
+          yield {
+            type: "error",
+            message: `tool input was not valid JSON (tool=${slot.name}, id=${slot.id})`,
+          }
+          delete toolUseInProgress[ev.index]
+          continue
+        }
         toolCalls++
         yield { type: "tool_call", id: slot.id, name: slot.name, input }
         delete toolUseInProgress[ev.index]

@@ -92,18 +92,89 @@ describe("streamCoach (agent_sdk backend)", () => {
       url: "http://test/mcp",
     })
     expect(callArgs.options.allowedTools).toEqual(["mcp__whiteboard__*"])
+    expect(callArgs.options.tools).toEqual([])  // built-in tools disabled
+    expect(callArgs.options.permissionMode).toBe("bypassPermissions")
     expect(callArgs.options.systemPrompt).toBe("S")
     expect(callArgs.options.model).toBe("claude-opus-4-7")
   })
 
-  test("emits a done event after the stream closes", async () => {
-    ;(query as any).mockReturnValue(fakeStream([]))
+  test("emits a done event with assistant=[], iters=1, tool_calls counted", async () => {
+    ;(query as any).mockReturnValue(
+      fakeStream([
+        // One tool_use to bump tool_calls to 1.
+        { type: "content_block_start", index: 0,
+          content_block: { type: "tool_use", id: "t1", name: "mcp__whiteboard__x", input: {} } },
+        { type: "content_block_stop", index: 0 },
+      ]),
+    )
     const events = await collect(streamCoach({
       system: "S", messages: [{ role: "user", content: "x" }],
       model: "claude-opus-4-7", maxIters: 8,
     }))
-    const done = events.find(e => e.type === "done")
+    const done = events.find(e => e.type === "done") as any
     expect(done).toBeDefined()
+    // SDK path doesn't preserve assistant content blocks (a known v0.8
+    // polish gap; the metered path returns the real blocks here).
+    expect(done.assistant).toEqual([])
+    expect(done.iters).toBe(1)
+    expect(done.tool_calls).toBe(1)
+    expect(typeof done.total_ms).toBe("number")
+  })
+
+  test("malformed input_json_delta yields an error event (not _raw fallback)", async () => {
+    ;(query as any).mockReturnValue(
+      fakeStream([
+        { type: "content_block_start", index: 0,
+          content_block: { type: "tool_use", id: "t1", name: "mcp__whiteboard__x", input: {} } },
+        { type: "content_block_delta", index: 0,
+          delta: { type: "input_json_delta", partial_json: "{not json" } },
+        { type: "content_block_stop", index: 0 },
+      ]),
+    )
+    const events = await collect(streamCoach({
+      system: "S", messages: [{ role: "user", content: "x" }],
+      model: "claude-opus-4-7", maxIters: 8,
+    }))
+    const errs = events.filter(e => e.type === "error")
+    expect(errs).toHaveLength(1)
+    expect((errs[0] as any).message).toContain("not valid JSON")
+    // No tool_call should be emitted when the input is malformed.
+    expect(events.filter(e => e.type === "tool_call")).toHaveLength(0)
+  })
+
+  test("two concurrent tool_use blocks at different indices emit two calls", async () => {
+    ;(query as any).mockReturnValue(
+      fakeStream([
+        { type: "content_block_start", index: 0,
+          content_block: { type: "tool_use", id: "t1", name: "mcp__whiteboard__a", input: {} } },
+        { type: "content_block_start", index: 1,
+          content_block: { type: "tool_use", id: "t2", name: "mcp__whiteboard__b", input: {} } },
+        { type: "content_block_delta", index: 0,
+          delta: { type: "input_json_delta", partial_json: "{\"x\":1}" } },
+        { type: "content_block_delta", index: 1,
+          delta: { type: "input_json_delta", partial_json: "{\"y\":2}" } },
+        { type: "content_block_stop", index: 1 },
+        { type: "content_block_stop", index: 0 },
+      ]),
+    )
+    const events = await collect(streamCoach({
+      system: "S", messages: [{ role: "user", content: "x" }],
+      model: "claude-opus-4-7", maxIters: 8,
+    }))
+    const calls = events.filter(e => e.type === "tool_call") as any[]
+    expect(calls).toHaveLength(2)
+    expect(calls.map(c => c.id).sort()).toEqual(["t1", "t2"])
+    const byId = Object.fromEntries(calls.map(c => [c.id, c.input]))
+    expect(byId.t1).toEqual({ x: 1 })
+    expect(byId.t2).toEqual({ y: 2 })
+  })
+
+  test("unknown CHAT_BACKEND throws", async () => {
+    process.env.CHAT_BACKEND = "apl"  // typo of "api"
+    await expect(collect(streamCoach({
+      system: "S", messages: [{ role: "user", content: "x" }],
+      model: "claude-opus-4-7", maxIters: 8,
+    }))).rejects.toThrow(/CHAT_BACKEND must be/)
   })
 
   test("synthesizes USER:/ASSISTANT: history prefix on multi-turn messages", async () => {

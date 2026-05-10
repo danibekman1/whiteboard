@@ -53,8 +53,12 @@ def _load_question(conn, slug: str):
 
 
 def main() -> int:
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ANTHROPIC_API_KEY not set", file=sys.stderr)
+    backend = os.environ.get("CHAT_BACKEND", "api")
+    if backend == "api" and not os.environ.get("ANTHROPIC_API_KEY"):
+        print("ANTHROPIC_API_KEY not set (api backend)", file=sys.stderr)
+        return 2
+    if backend == "agent_sdk" and not os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        print("CLAUDE_CODE_OAUTH_TOKEN not set (agent_sdk backend)", file=sys.stderr)
         return 2
     if not BANK_DIR.exists() or not any(BANK_DIR.glob("*.json")):
         print(
@@ -68,7 +72,9 @@ def main() -> int:
     ensure_schema(conn)
     ingest_topics(conn, TOPICS_SEED)
     ingest_bank(conn, BANK_DIR)
-    client = get_anthropic_client()
+    # On the agent_sdk backend the evaluator constructs its own SDK MCP
+    # server and ignores `client`. Build one only when we'll use it.
+    client = get_anthropic_client() if backend == "api" else None
 
     failures = 0
     skipped = 0
