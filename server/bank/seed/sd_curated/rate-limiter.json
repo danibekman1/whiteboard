@@ -1,0 +1,88 @@
+{
+  "slug": "rate-limiter",
+  "type": "system_design",
+  "title": "Rate Limiter",
+  "statement": "Design a distributed rate limiter for an API gateway. Each API client has a per-second and per-minute request quota; requests over the limit should be rejected with HTTP 429. The limiter sits in front of stateless API servers and must work consistently across many gateway instances. Optimize for low added latency on the request path and accurate enforcement under bursty traffic.",
+  "difficulty": "medium",
+  "scenario_tag": "token bucket vs sliding window",
+  "phases": [
+    {
+      "phase": "clarify",
+      "ordinal": 1,
+      "checklist": [
+        {"item": "Functional scope: per-client rate limits with multiple time windows (e.g. 100/sec and 5,000/min); reject overage with 429 and a Retry-After header", "required": true},
+        {"item": "Client identity: API key in header is the limit key; consider also limiting by IP for unauthenticated routes", "required": true},
+        {"item": "Out of scope: dynamic per-client quota tiers (assume static quotas), payment-tied limits, geographic limits", "required": true},
+        {"item": "Latency budget: limiter check should add under 5ms to the request path", "required": true},
+        {"item": "Failure mode: if the limiter backend (Redis) is unreachable, fail open or fail closed - explicitly choose", "required": false}
+      ]
+    },
+    {
+      "phase": "estimate",
+      "ordinal": 2,
+      "checklist": [
+        {"item": "Request volume: assume 100k QPS at the gateway tier; that is 100k limiter checks per second across all clients", "required": true},
+        {"item": "Number of unique limit keys: depends on client base; assume 10k active API keys at any time", "required": true},
+        {"item": "Memory per key: a few counters and timestamps, well under 1KB per key; total state fits in a single Redis node easily", "required": true},
+        {"item": "Network round-trip to Redis: 0.5-1ms in-region; that fits the 5ms latency budget but leaves little room for Redis to be slow", "required": true},
+        {"item": "Burst behavior: 10x burst per client for short windows is realistic, requires choosing an algorithm that handles bursts cleanly", "required": false}
+      ]
+    },
+    {
+      "phase": "high_level",
+      "ordinal": 3,
+      "checklist": [
+        {"item": "Architecture: API gateway intercepts each request, calls the rate-limiter service (or a Redis-backed library), allows or rejects based on response", "required": true},
+        {"item": "State store: Redis cluster holds counters keyed by (client_id, window); atomic INCR or Lua scripts handle increment-and-check in one round-trip", "required": true},
+        {"item": "Algorithm choices: fixed window (simple but allows 2x burst at boundary), sliding window (accurate but more state), token bucket (handles bursts elegantly)", "required": true},
+        {"item": "Configuration: quotas live in a config service; limiter loads them on startup and refreshes periodically", "required": true},
+        {"item": "Failure mode chosen: fail open (allow request if limiter is unreachable) preserves availability; appropriate for most public APIs", "required": false}
+      ]
+    },
+    {
+      "phase": "deep_dive",
+      "ordinal": 4,
+      "checklist": [
+        {"item": "Token bucket algorithm: each client has a bucket of tokens that refills at a fixed rate; each request consumes one token; reject when empty. Handles bursts naturally up to bucket capacity", "required": true},
+        {"item": "Sliding window log vs sliding window counter: log stores every request timestamp (accurate but O(N) memory); counter approximates by weighting current and previous fixed windows (constant memory, slightly inaccurate at boundaries)", "required": true},
+        {"item": "Atomicity: increment-and-check must be atomic to prevent two concurrent gateway instances from both seeing 'under limit' and admitting the over-limit request. Use Redis Lua scripts or atomic operations", "required": true},
+        {"item": "Multi-window enforcement: when a client has both 100/sec and 5,000/min limits, both must be checked; reject if either is over", "required": true},
+        {"item": "Hot-key contention: a single API key with extreme volume can saturate one Redis shard; mitigate by sharding heavy keys across N sub-keys and aggregating", "required": false},
+        {"item": "Clock skew: gateway instances have slightly different clocks; either trust Redis's time or use TIME command to centralize", "required": false}
+      ]
+    },
+    {
+      "phase": "tradeoffs",
+      "ordinal": 5,
+      "checklist": [
+        {"item": "Token bucket vs sliding window counter: token bucket is more bursty-friendly and intuitive but harder to debug ('why was this request rejected?'); sliding window counter is easier to reason about", "required": true},
+        {"item": "Fail open vs fail closed when Redis is down: fail open preserves availability and is appropriate for non-critical limits; fail closed protects backend at the cost of dropping requests during a Redis outage", "required": true},
+        {"item": "Centralized Redis vs in-memory per-instance with periodic sync: centralized is accurate but adds a hop; per-instance is faster but allows N x quota burst across N instances", "required": true},
+        {"item": "Strict per-second enforcement vs allowing burst-up-to-capacity: strict is fairer but rejects legitimate bursts; burst-allowed is friendlier but harder to capacity-plan against", "required": true},
+        {"item": "10x scale path: shard the Redis cluster by client_id hash; for hot keys, shard a single key's state across N sub-keys and aggregate", "required": false}
+      ]
+    }
+  ],
+  "pushbacks": [
+    {
+      "trigger_tag": "no_atomicity_consideration",
+      "trigger_desc": "Candidate proposes a check-then-increment pattern without addressing the race condition between concurrent gateway instances",
+      "response": "Two gateway instances both read 'count = 99' at the same millisecond, both increment to 100, both let the request through. Now you're at 101. How does your design prevent that?"
+    },
+    {
+      "trigger_tag": "fixed_window_only",
+      "trigger_desc": "Candidate proposes fixed-window counters without acknowledging the boundary-burst problem",
+      "response": "A client sends 100 requests at 12:00:59.9 and another 100 at 12:01:00.1. Your fixed-window-per-second limit of 100 says both windows are fine. Did the user get 100/sec or 200/sec?"
+    },
+    {
+      "trigger_tag": "no_failure_mode",
+      "trigger_desc": "Candidate doesn't address what happens when Redis is unreachable",
+      "response": "It's 3am and Redis just hard-crashed. What happens to incoming requests for the next 30 seconds while it restarts?"
+    },
+    {
+      "trigger_tag": "no_burst_discussion",
+      "trigger_desc": "Candidate picks an algorithm without discussing how it handles bursts vs sustained load",
+      "response": "A client sends 50 requests in one millisecond, then nothing for the next 999 milliseconds. Their per-second limit is 100. Should that be allowed? What does your algorithm say?"
+    }
+  ]
+}
