@@ -1,0 +1,94 @@
+{
+  "slug": "url-shortener",
+  "type": "system_design",
+  "title": "URL Shortener",
+  "statement": "Design a URL shortener service like bit.ly. Users submit long URLs and receive short ones; visiting the short URL redirects to the original long URL. The service is read-heavy: redirects vastly outnumber creations. Optimize for low-latency redirects and durable storage of mappings.",
+  "difficulty": "medium",
+  "scenario_tag": "high read traffic",
+  "phases": [
+    {
+      "phase": "clarify",
+      "ordinal": 1,
+      "checklist": [
+        {"item": "Functional scope: shorten a URL, redirect short to long; consider custom aliases and expiration as optional", "required": true},
+        {"item": "Out of scope explicitly: analytics, user accounts, edit/delete operations are not in v1", "required": true},
+        {"item": "Read-to-write ratio is roughly 10:1 or higher (most short URLs are clicked many times after creation)", "required": true},
+        {"item": "Latency target: redirect under 100ms p99; creation can be slower (under 500ms)", "required": true},
+        {"item": "Edge cases acknowledged: hash collisions, malicious URL submissions, very long input URLs", "required": false}
+      ]
+    },
+    {
+      "phase": "estimate",
+      "ordinal": 2,
+      "checklist": [
+        {"item": "Write QPS: assume 100M new URLs/year -> roughly 3 writes/sec average", "required": true},
+        {"item": "Read QPS: 30 reads/sec average at 10:1 ratio; peak around 300/sec assuming 10x burst", "required": true},
+        {"item": "Storage: 100M URLs/year x 5 years x ~500 bytes per row = ~250GB; KV store fits comfortably", "required": true},
+        {"item": "Short code length: 7 base62 characters yields 62^7 = 3.5 trillion codes, more than enough for 5-year horizon", "required": true},
+        {"item": "Bandwidth: redirects are tiny (HTTP 302 + Location header), well under 1MB/s outbound", "required": false}
+      ]
+    },
+    {
+      "phase": "high_level",
+      "ordinal": 3,
+      "checklist": [
+        {"item": "API surface: POST /shorten {long_url, custom_alias?} -> {short_url}; GET /:code -> 302 redirect to long_url", "required": true},
+        {"item": "Components: stateless API servers behind a load balancer, key generation service, KV store, read cache (Redis), CDN at the edge", "required": true},
+        {"item": "Data model: short_code (PK), long_url, created_at, expires_at; no joins needed, point-lookup access pattern", "required": true},
+        {"item": "Read path: CDN -> Redis cache -> KV store; 302 response on hit, 404 on miss", "required": true},
+        {"item": "Write path: validate URL, generate or accept code, check uniqueness, persist, return short URL", "required": true},
+        {"item": "Stateless API tier means horizontal scaling is just adding instances behind the load balancer", "required": false}
+      ]
+    },
+    {
+      "phase": "deep_dive",
+      "ordinal": 4,
+      "checklist": [
+        {"item": "Key generation strategy: counter + base62 (sequential, simple, predictable) vs hash(long_url)[:7] (collision risk) vs pre-allocated code blocks per write server (distributable, no single counter bottleneck)", "required": true},
+        {"item": "Caching layer: Redis with LRU eviction; popular codes (long-tail of trending links) get hit rates above 90%; TTL based on access recency", "required": true},
+        {"item": "Storage choice: NoSQL KV store (Cassandra, DynamoDB) sharded by short_code hash; access pattern is point-lookup so a relational DB is overkill", "required": true},
+        {"item": "Collision handling: with 7-char base62 and 100M codes, birthday-paradox collision probability is negligible; for hash-based generation, retry on collision and increment a salt counter", "required": true},
+        {"item": "302 vs 301 redirects: 302 (temporary) preserves click tracking and lets us change destinations; 301 (permanent) is browser-cacheable but loses analytics", "required": false},
+        {"item": "URL validation and abuse prevention: reject malformed URLs, blocklist known-bad domains, rate-limit creation per IP", "required": false}
+      ]
+    },
+    {
+      "phase": "tradeoffs",
+      "ordinal": 5,
+      "checklist": [
+        {"item": "Counter vs hash key generation: counter is simpler and avoids collisions but requires a coordination point; hash is distributable but needs collision retry logic", "required": true},
+        {"item": "Strong consistency on writes (uniqueness check before insert) vs eventual consistency (accept rare duplicates and reconcile asynchronously)", "required": true},
+        {"item": "Cache locality: regional Redis caches with origin pull cut cross-region latency at the cost of multi-region cache warmup", "required": true},
+        {"item": "CDN at the edge: dramatically cuts origin reads for hot URLs but adds invalidation complexity if URLs are ever updated", "required": true},
+        {"item": "10x scale path: pre-allocate code blocks per write server (no central counter), shard KV store by code prefix, add a second Redis tier for the hottest 1% of codes", "required": false}
+      ]
+    }
+  ],
+  "pushbacks": [
+    {
+      "trigger_tag": "no_capacity_estimate",
+      "trigger_desc": "Candidate jumps to architecture (databases, caches, services) before grounding the design in concrete QPS and storage numbers",
+      "response": "Hold on - we don't know yet whether this is 1k QPS or 1M QPS. Does that distinction matter for what you're about to draw?"
+    },
+    {
+      "trigger_tag": "single_db_at_scale",
+      "trigger_desc": "Candidate proposes a single relational database for both reads and writes at scale without addressing read/write asymmetry",
+      "response": "If reads outnumber writes 10:1 or 100:1, is one Postgres really protecting itself here, or are you about to get a wake-up call from the on-call engineer?"
+    },
+    {
+      "trigger_tag": "naive_hashing",
+      "trigger_desc": "Candidate proposes hashing the long URL with MD5 or similar without addressing collisions or the truncation question",
+      "response": "MD5 of the URL truncated to 7 characters - what happens the first time two different long URLs hash to the same short code? And how often does that happen at 100M URLs?"
+    },
+    {
+      "trigger_tag": "no_cache_discussion",
+      "trigger_desc": "Candidate moves to deep dive (sharding, replication) without addressing read caching despite the read-heavy workload",
+      "response": "We're at potentially millions of reads per day on a relational database - what's protecting it from getting hammered by repeat reads on popular URLs?"
+    },
+    {
+      "trigger_tag": "no_collision_strategy",
+      "trigger_desc": "Candidate uses random or hash-based key generation without acknowledging collision handling",
+      "response": "You're generating short codes by hashing or random sampling - walk me through what happens when you generate a code that already exists. What's the contention story under high write rates?"
+    }
+  ]
+}
