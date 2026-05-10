@@ -14,6 +14,7 @@ def test_schema_creates_expected_tables(db):
         "questions", "steps", "sessions", "attempts",
         "topics", "question_topics", "hint_levels",
         "topic_prereqs", "weakness_profile",
+        "sd_phases", "sd_checklist", "sd_pushbacks",
     }
 
 

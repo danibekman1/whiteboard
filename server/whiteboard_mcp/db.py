@@ -86,6 +86,34 @@ CREATE TABLE IF NOT EXISTS weakness_profile (
   -- orphaned session ids ageing into the table.
   last_seen_session  TEXT REFERENCES sessions(id)
 );
+
+-- v0.7 additions
+CREATE TABLE IF NOT EXISTS sd_phases (
+  id           INTEGER PRIMARY KEY,
+  question_id  INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  phase        TEXT NOT NULL CHECK (phase IN
+    ('clarify','estimate','high_level','deep_dive','tradeoffs')),
+  ordinal      INTEGER NOT NULL CHECK (ordinal BETWEEN 1 AND 5),
+  UNIQUE (question_id, phase),
+  UNIQUE (question_id, ordinal)
+);
+
+CREATE TABLE IF NOT EXISTS sd_checklist (
+  id        INTEGER PRIMARY KEY,
+  phase_id  INTEGER NOT NULL REFERENCES sd_phases(id) ON DELETE CASCADE,
+  ordinal   INTEGER NOT NULL,
+  item      TEXT NOT NULL,
+  required  INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (phase_id, ordinal)
+);
+
+CREATE TABLE IF NOT EXISTS sd_pushbacks (
+  id           INTEGER PRIMARY KEY,
+  question_id  INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  trigger_tag  TEXT NOT NULL,
+  trigger_desc TEXT NOT NULL,
+  response     TEXT NOT NULL
+);
 """
 
 # Columns added to existing tables across versions. CREATE IF NOT EXISTS won't
@@ -94,6 +122,11 @@ CREATE TABLE IF NOT EXISTS weakness_profile (
 _QUESTIONS_NEW_COLUMNS = [  # v0.5a
     ("leetcode_id", "INTEGER"),
     ("topic_id",    "INTEGER REFERENCES topics(id)"),
+    # v0.7: discriminator between algo and system_design questions.
+    # DEFAULT 'algo' backfills v0.6 rows on first boot; sd_generator output
+    # sets type explicitly so no API-level default exists.
+    ("type",        "TEXT NOT NULL DEFAULT 'algo' "
+                    "CHECK (type IN ('algo', 'system_design'))"),
 ]
 
 _SESSIONS_NEW_COLUMNS = [  # v0.6
