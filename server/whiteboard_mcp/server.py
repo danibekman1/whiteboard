@@ -65,12 +65,16 @@ def get_conn():
 
 
 @mcp.tool()
-def get_next_question(slug: str | None = None, type: str = "algo") -> dict:
+def get_next_question(slug: str | None = None, type: str | None = None) -> dict:
     """Pull a question and start a new coaching session.
 
     Optional `slug` picks a specific question (e.g. 'two-sum', 'url-shortener').
-    Optional `type` ('algo' default, or 'system_design') filters the random
-    pick when no slug is given. Slug always wins if both are passed.
+    Optional `type` filters the random pick to 'algo' or 'system_design' when
+    no slug is given. Slug always wins if both are passed.
+
+    Always pass `type` explicitly when you have a preference. If omitted,
+    the server falls back to 'algo' for back-compat with v0.6 callers; that
+    fallback is business logic, not part of the contract, and may change.
 
     Returns {session_id, question: {slug, title, statement, difficulty, type}}.
     Canonical reasoning content (algo steps, SD checklist) is NOT returned -

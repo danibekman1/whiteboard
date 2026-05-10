@@ -7,6 +7,8 @@ from whiteboard_mcp.recommend import (
 )
 from whiteboard_mcp.tools.get_weakness_profile import get_weakness_profile
 
+_DIFF_ORDER = {"easy": 0, "medium": 1, "hard": 2}
+
 
 def _topic_status_string(status: dict, prereqs: list[str], status_map: dict) -> str:
     if _is_mastered(status):
@@ -86,7 +88,6 @@ def get_roadmap(
     # SD questions live in the same `questions` table but are surfaced in a
     # separate array - the algo `questions[]` above is filtered to type='algo'
     # so SD slugs don't accidentally appear in the algo grid.
-    DIFF_ORDER = {"easy": 0, "medium": 1, "hard": 2}
     sd_rows = conn.execute(
         """
         SELECT q.slug, q.title, q.difficulty, q.scenario_tag,
@@ -102,7 +103,7 @@ def get_roadmap(
          "scenario_tag": r["scenario_tag"], "latest_outcome": r["latest_outcome"]}
         for r in sd_rows
     ]
-    sd_questions.sort(key=lambda q: (DIFF_ORDER.get(q["difficulty"], 99), q["slug"]))
+    sd_questions.sort(key=lambda q: (_DIFF_ORDER.get(q["difficulty"], 99), q["slug"]))
 
     rec = recommend_next(conn, focus_topic_slug=focus_topic_slug)
     recommendation = (

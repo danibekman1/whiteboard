@@ -82,6 +82,12 @@ def test_type_filter_returns_not_found_when_no_questions_match(db):
 def test_invalid_type_value_rejected(db, tmp_path):
     _bootstrap_mixed(db, tmp_path)
     result = get_next_question(db, type="not_a_real_type")
-    assert result["error"] in ("not_found", "invalid_type")
-    # Either is acceptable - 'invalid_type' is more informative but
-    # 'not_found' (no questions of that type) is also a fine signal.
+    # Pin the implementation contract rather than accept either error: a
+    # future contract change to 'invalid_type' should be an explicit test
+    # diff, not a silent swap.
+    assert result == {
+        "error": "not_found",
+        "entity": "question",
+        "by": "type",
+        "value": "not_a_real_type",
+    }

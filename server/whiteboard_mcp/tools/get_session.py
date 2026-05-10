@@ -3,9 +3,10 @@
 For algo sessions, returns the question (slug/title/statement/difficulty/type),
 current step ordinal, attempts count, and outcome.
 
-For SD sessions, additionally returns scenario_tag, the question's pushback
-library (so the outer coach has them in-context for adversarial moves), and
-the current phase derived from the latest attempt's evaluator JSON.
+For SD sessions, additionally returns scenario_tag (null when unset), the
+question's pushback library (so the outer coach has them in-context for
+adversarial moves), and the current phase derived from the latest attempt's
+evaluator JSON.
 
 Canonical reasoning content (algo steps, SD checklist) is never returned -
 the outer agent must not be able to leak it via this tool either."""
@@ -15,9 +16,10 @@ import sqlite3
 
 from whiteboard_mcp.errors import not_found
 
-# Phase-to-ordinal map. Kept aligned with sd_phases.ordinal CHECK constraint
-# (1..5) and the Phase Literal in sd_evaluator.py - if the phase set ever
-# changes, both sites need updating.
+# Phase-to-ordinal map. Kept aligned with three sites that hard-code the
+# phase set: sd_phases.ordinal CHECK constraint (1..5), the Phase Literal
+# in sd_evaluator.py, and the Phase Literal in bank/sd_schemas.py. If the
+# phase set ever changes, all three sites need updating.
 _PHASE_ORDINAL = {
     "clarify": 1, "estimate": 2, "high_level": 3,
     "deep_dive": 4, "tradeoffs": 5,
@@ -61,7 +63,8 @@ def _load_pushbacks(conn: sqlite3.Connection, question_id: int) -> list[dict]:
 def get_session(conn: sqlite3.Connection, session_id: str) -> dict:
     row = conn.execute("""
         SELECT s.id AS session_id, s.outcome, s.current_step_id,
-               q.id AS question_id, q.slug, q.title, q.statement, q.difficulty, q.type
+               q.id AS question_id, q.slug, q.title, q.statement, q.difficulty,
+               q.type, q.scenario_tag
         FROM sessions s
         JOIN questions q ON q.id = s.question_id
         WHERE s.id = ?
@@ -99,14 +102,10 @@ def get_session(conn: sqlite3.Connection, session_id: str) -> dict:
     }
 
     if row["type"] == "system_design":
-        # Re-query for SD-specific column. Keeping the main JOIN minimal (no
-        # LEFT JOIN on sd_*) so the algo path stays identical.
-        sd_row = conn.execute(
-            "SELECT scenario_tag FROM questions WHERE id = ?",
-            (row["question_id"],),
-        ).fetchone()
-        if sd_row and sd_row["scenario_tag"]:
-            question["scenario_tag"] = sd_row["scenario_tag"]
+        # Spec §3: scenario_tag is "SD only; null for algo". Always-present
+        # for SD (value or null), omitted for algo - keeps the contract
+        # explicit at the SD chat UI without leaking the field to algo.
+        question["scenario_tag"] = row["scenario_tag"]
         payload["pushbacks"] = _load_pushbacks(conn, row["question_id"])
         payload["current_phase"] = _current_phase_from_attempts(conn, session_id)
 

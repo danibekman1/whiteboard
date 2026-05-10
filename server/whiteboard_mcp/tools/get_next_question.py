@@ -5,7 +5,10 @@ stays server-side so the outer agent cannot leak it to the candidate.
 
 Filters:
   - slug: pick a specific question (overrides type filter)
-  - type: 'algo' (default), 'system_design'. Random pick within the filter.
+  - type: 'algo' or 'system_design'. Optional. When omitted, business
+    logic resolves to 'algo' so v0.6 callers (which never passed a type)
+    keep their algo-only random pick. Pass 'system_design' explicitly to
+    select an SD question.
 """
 from __future__ import annotations
 import random
@@ -16,12 +19,17 @@ from whiteboard_mcp.errors import not_found
 
 
 VALID_TYPES = ("algo", "system_design")
+# Business-logic fallback: when no type is passed, pre-PR-4 callers
+# expected algo-only behavior (the bank had no SD rows yet). We resolve
+# at the boundary rather than at the API surface so the contract stays
+# explicit ("None means caller didn't ask").
+_DEFAULT_TYPE = "algo"
 
 
 def get_next_question(
     conn: sqlite3.Connection,
     slug: str | None = None,
-    type: str = "algo",
+    type: str | None = None,
 ) -> dict:
     if slug:
         row = conn.execute(
@@ -32,15 +40,16 @@ def get_next_question(
         if not row:
             return not_found(entity="question", by="slug", value=slug)
     else:
-        if type not in VALID_TYPES:
-            return not_found(entity="question", by="type", value=type)
+        qtype = type if type is not None else _DEFAULT_TYPE
+        if qtype not in VALID_TYPES:
+            return not_found(entity="question", by="type", value=qtype)
         rows = conn.execute(
             "SELECT id, slug, title, statement, difficulty, type "
             "FROM questions WHERE type = ?",
-            (type,),
+            (qtype,),
         ).fetchall()
         if not rows:
-            return not_found(entity="question", by="type", value=type)
+            return not_found(entity="question", by="type", value=qtype)
         row = random.choice(rows)
 
     session_id = str(uuid.uuid4())

@@ -30,7 +30,10 @@ def test_get_roadmap_returns_sd_questions(db):
     rm = get_roadmap(db)
     assert "sd_questions" in rm
     slugs = {q["slug"] for q in rm["sd_questions"]}
-    assert {"url-shortener", "parking-lot", "rate-limiter"} <= slugs
+    # Pin the exact set; the curated bank is deterministic so a stray file
+    # appearing under sd_curated/ should be a deliberate test update, not
+    # silently absorbed.
+    assert slugs == {"url-shortener", "parking-lot", "rate-limiter"}
 
 
 def test_sd_question_row_shape(db):

@@ -39,10 +39,19 @@ def test_get_session_sd_returns_pushbacks(db, tmp_path):
     sid = get_next_question(db, slug="url-shortener")["session_id"]
     s = get_session(db, session_id=sid)
     assert "pushbacks" in s
-    # url-shortener has 5 pushbacks (per the curated content).
-    assert len(s["pushbacks"]) >= 3
+    # url-shortener has exactly 5 pushbacks per the curated content.
+    # Pinning the count catches both regressions that drop rows and
+    # accidental duplicate inserts.
+    assert len(s["pushbacks"]) == 5
     pb = s["pushbacks"][0]
     assert {"trigger_tag", "trigger_desc", "response"} <= set(pb.keys())
+    # Anchor at least one trigger_tag + response pair to the curated source
+    # so an empty response or shuffled rows are caught.
+    by_tag = {p["trigger_tag"]: p for p in s["pushbacks"]}
+    assert "no_capacity_estimate" in by_tag
+    assert by_tag["no_capacity_estimate"]["response"].startswith(
+        "Hold on - we don't know yet"
+    )
 
 
 def test_get_session_sd_current_phase_null_before_first_attempt(db, tmp_path):
@@ -89,6 +98,32 @@ def test_get_session_sd_handles_malformed_evaluator_json_gracefully(db, tmp_path
     # the contract is "no crash". Implementation choice: return null on parse
     # failure (clearer signal than fake-default).
     assert s["current_phase"] is None
+
+
+def test_get_session_sd_handles_unknown_phase_string_gracefully(db, tmp_path):
+    """Valid JSON whose `phase` is a string not in the known phase set
+    (e.g. an evaluator schema drift) -> current_phase falls back to null
+    rather than guessing an ordinal."""
+    _bootstrap_curated(db)
+    sid = get_next_question(db, slug="url-shortener")["session_id"]
+    db.execute(
+        "INSERT INTO attempts (session_id, ordinal, user_text, evaluator_json) "
+        "VALUES (?, 1, 'x', ?)",
+        (sid, '{"phase": "settle", "suggested_move": "nudge"}'),
+    )
+    db.commit()
+    s = get_session(db, session_id=sid)
+    assert s["current_phase"] is None
+
+
+def test_get_session_sd_scenario_tag_always_present_for_sd(db, tmp_path):
+    """Spec §3: scenario_tag is 'SD only; null for algo'. Implementation:
+    always-present (value or null) for SD, omitted for algo."""
+    _bootstrap_curated(db)
+    sid = get_next_question(db, slug="url-shortener")["session_id"]
+    s = get_session(db, session_id=sid)
+    assert "scenario_tag" in s["question"]
+    assert s["question"]["scenario_tag"] == "high read traffic"
 
 
 # --- algo-side regressions ------------------------------------------------
