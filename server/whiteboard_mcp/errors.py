@@ -41,3 +41,11 @@ def invalid_outcome(got: Any, valid: list[str]) -> dict:
 
 def wrong_question_type(got: str, expected: str) -> dict:
     return {"error": "wrong_question_type", "got": got, "expected": expected}
+
+
+def not_supported_for_sd(tool: str) -> dict:
+    return {
+        "error": "not_supported_for_sd",
+        "tool": tool,
+        "message": f"{tool} is not supported for system_design sessions",
+    }
