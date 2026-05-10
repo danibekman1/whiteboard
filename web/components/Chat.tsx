@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Composer } from "./Composer"
 import { Message } from "./Message"
-import { QuestionPane } from "./QuestionPane"
+import { AlgoQuestionPane } from "./AlgoQuestionPane"
 import { ChatBlock, WireMessage } from "@/lib/types"
 
 type ChatMessage = { role: "user" | "assistant"; blocks: ChatBlock[] }
@@ -124,7 +124,7 @@ export function Chat({ sessionId }: { sessionId?: string } = {}) {
           </button>
         </header>
       )}
-      {session && <QuestionPane question={session.question} />}
+      {session && <AlgoQuestionPane question={session.question} />}
       {sessionError && (
         <div className="bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm px-4 py-3">
           {sessionError}

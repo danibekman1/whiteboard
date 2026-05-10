@@ -17,7 +17,7 @@ const PILL: Record<Difficulty, string> = {
   hard: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300",
 }
 
-export function QuestionPane({ question }: { question: Question }) {
+export function AlgoQuestionPane({ question }: { question: Question }) {
   const [expanded, setExpanded] = useState(true)
   return (
     <div
