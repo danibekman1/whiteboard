@@ -176,6 +176,11 @@ def _cli() -> int:
     with contextlib.closing(connect(args.db)) as conn:
         ensure_schema(conn)
         n = ingest_bank(conn, args.dir)
+        # Also ingest curated SD questions (committed to git, not generated).
+        # ingest_bank is idempotent on slug, so overlapping dirs are safe.
+        sd_curated = Path(__file__).parent / "seed" / "sd_curated"
+        if sd_curated.exists():
+            n += ingest_bank(conn, sd_curated)
         print(f"ingested {n} questions into {args.db}")
     return 0
 
