@@ -11,12 +11,7 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel, Field
 
-from whiteboard_mcp._anthropic import get_anthropic_client
-
-
-# 60s upper bound on the inner LLM call. Past this we surface
-# evaluator_timeout() rather than hanging the MCP request.
-EVALUATOR_TIMEOUT_S = 60.0
+from whiteboard_mcp._evaluator_backend import EVALUATOR_TIMEOUT_S, evaluate_with_forced_tool
 
 
 class EvaluatorOutput(BaseModel):
@@ -92,21 +87,16 @@ def evaluate(
     """Run the inner evaluator. Raises ValueError if the model returned no
     tool_use block; raises pydantic.ValidationError on malformed payloads;
     raises anthropic.APITimeoutError if the call exceeds EVALUATOR_TIMEOUT_S.
-    The caller is responsible for translating these to MCP error dicts."""
+    The caller is responsible for translating these to MCP error dicts.
+
+    `client` is honored on the metered (api) backend; ignored on the
+    agent_sdk backend, which constructs its own SDK MCP server."""
     model = model or os.environ.get("CLAUDE_COACH_MODEL", "claude-opus-4-7")
-    response = client.messages.create(
-        model=model,
-        max_tokens=1024,
+    return evaluate_with_forced_tool(
         system=SYSTEM_PROMPT,
-        tools=[SUBMIT_TOOL],
-        tool_choice={"type": "tool", "name": "submit_evaluation"},
-        messages=[{
-            "role": "user",
-            "content": _build_user_message(question_statement, canonical_steps, user_text),
-        }],
-        timeout=EVALUATOR_TIMEOUT_S,
+        user_text=_build_user_message(question_statement, canonical_steps, user_text),
+        output_schema=EvaluatorOutput,
+        tool_name="submit_evaluation",
+        model=model,
+        client=client,
     )
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "submit_evaluation":
-            return EvaluatorOutput.model_validate(block.input)
-    raise ValueError("evaluator returned no tool_use block")
