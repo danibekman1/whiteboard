@@ -71,10 +71,14 @@ def test_unknown_slug_returns_error(db_with_two_sum):
 
 
 def test_empty_bank_returns_error(db):
+    """No algo questions in the bank -> not_found keyed on the type filter.
+    Pre-PR-4 the error was {by:'*', value:'(empty bank)'}; with the type
+    filter we surface which type came up empty so the caller can distinguish
+    a missing-bank error from a missing-SD error."""
     out = get_next_question(db)
     assert out == {
         "error": "not_found",
         "entity": "question",
-        "by": "*",
-        "value": "(empty bank)",
+        "by": "type",
+        "value": "algo",
     }

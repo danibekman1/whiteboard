@@ -65,19 +65,22 @@ def get_conn():
 
 
 @mcp.tool()
-def get_next_question(slug: str | None = None) -> dict:
+def get_next_question(slug: str | None = None, type: str = "algo") -> dict:
     """Pull a question and start a new coaching session.
 
-    Optional slug picks a specific question (e.g. 'two-sum'). Omit for random.
-    Returns {session_id, question: {slug, title, statement, difficulty}}.
-    Canonical reasoning steps are NOT returned - they stay server-side so
-    you cannot leak them to the candidate.
+    Optional `slug` picks a specific question (e.g. 'two-sum', 'url-shortener').
+    Optional `type` ('algo' default, or 'system_design') filters the random
+    pick when no slug is given. Slug always wins if both are passed.
 
-    Errors: {error: 'not_found', entity: 'question', ...} when slug is unknown
-    or the question bank is empty.
+    Returns {session_id, question: {slug, title, statement, difficulty, type}}.
+    Canonical reasoning content (algo steps, SD checklist) is NOT returned -
+    it stays server-side so you cannot leak it to the candidate.
+
+    Errors: {error: 'not_found', entity: 'question', ...} when slug is unknown,
+    or when no questions of the requested type exist.
     """
     with contextlib.closing(get_conn()) as conn:
-        return _get_next_question(conn, slug=slug)
+        return _get_next_question(conn, slug=slug, type=type)
 
 
 @mcp.tool()
