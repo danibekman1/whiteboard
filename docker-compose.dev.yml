@@ -1,0 +1,15 @@
+# Dev overlay. Layer on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Routes both web and server through the agent_sdk backend, which uses
+# Claude Code subscription auth (CLAUDE_CODE_OAUTH_TOKEN) instead of
+# metered ANTHROPIC_API_KEY. Prod stays on docker-compose.yml only.
+services:
+  server:
+    environment:
+      CHAT_BACKEND: agent_sdk
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}
+
+  web:
+    environment:
+      CHAT_BACKEND: agent_sdk
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN}

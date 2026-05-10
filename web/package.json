@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:docker": "docker compose -f ../docker-compose.yml -f ../docker-compose.dev.yml up --build"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.2.138",
