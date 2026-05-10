@@ -9,9 +9,9 @@ type ChatMessage = { role: "user" | "assistant"; blocks: ChatBlock[] }
 
 type Phase = "clarify" | "estimate" | "high_level" | "deep_dive" | "tradeoffs"
 
-// Single source of truth for SD phase ordering. Mirrors the server-side
-// ordinals in whiteboard_mcp/sd_evaluator.py so the tracker advances
-// consistently with the evaluator's classification.
+// Mirror of whiteboard_mcp/tools/get_session.py:_PHASE_ORDINAL. Kept in
+// sync with the four sites that hard-code the SD phase set; see the tally
+// comment on the server-side dict.
 const PHASE_ORDINAL: Record<Phase, number> = {
   clarify: 1,
   estimate: 2,

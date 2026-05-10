@@ -128,6 +128,58 @@ describe("Chat phase tracker sync", () => {
     expect(clarifyAfter?.getAttribute("data-current")).toBe("false")
   })
 
+  // Each row exercises one of the discriminator's guards. If any guard is
+  // later loosened (e.g. someone drops `phase in PHASE_ORDINAL`), the
+  // matching case here flips current_phase and the tracker chip lights up,
+  // failing the test. Without these, all four guards are individually
+  // unasserted - tightness today doesn't guarantee tightness tomorrow.
+  const REJECTED_PAYLOADS: { name: string; result: unknown }[] = [
+    { name: "result is null", result: null },
+    { name: "result.phase is missing", result: { suggested_move: "advance_phase" } },
+    { name: "result.phase is non-string", result: { phase: 42 } },
+    { name: "result.phase is unknown phase string", result: { phase: "clarifyy" } },
+  ]
+  test.each(REJECTED_PAYLOADS)(
+    "rejects malformed SD tool_result: $name (tracker stays muted)",
+    async ({ result }) => {
+      const sse = [
+        {
+          type: "tool_call",
+          id: "x1",
+          name: "evaluate_sd_attempt",
+          input: { session_id: "sid", user_text: "x" },
+        },
+        { type: "tool_result", tool_use_id: "x1", result },
+        { type: "done", assistant: [{ type: "text", text: "ok" }] },
+      ]
+      const fetchMock = makeFetchMock(SD_SESSION_FRESH, sse)
+      vi.stubGlobal("fetch", fetchMock)
+
+      render(<Chat sessionId="sid" />)
+      await waitFor(() => {
+        expect(screen.getByText("URL Shortener")).toBeInTheDocument()
+      })
+
+      const input = screen.getByPlaceholderText(/your reasoning|thinking/i) as HTMLTextAreaElement
+      fireEvent.change(input, { target: { value: "x" } })
+      fireEvent.submit(input.closest("form")!)
+
+      // Wait for the SSE stream to fully drain so a guard miss would have
+      // had its chance to fire.
+      await waitFor(() => {
+        expect((input as HTMLTextAreaElement).disabled).toBe(false)
+      })
+
+      // Every phase chip remains data-current="false" - the tracker never
+      // advanced because the guard rejected the payload.
+      const chips = document.querySelectorAll("[data-phase]")
+      expect(chips.length).toBe(5) // sanity: SD pane DID render
+      for (const chip of chips) {
+        expect(chip.getAttribute("data-current")).toBe("false")
+      }
+    },
+  )
+
   test("algo tool_result does NOT render a phase tracker (and does not crash)", async () => {
     // Algo evaluator returns a step_ordinal-shaped result; no phase field.
     const sse = [

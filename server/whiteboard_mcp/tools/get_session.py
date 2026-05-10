@@ -16,10 +16,12 @@ import sqlite3
 
 from whiteboard_mcp.errors import not_found
 
-# Phase-to-ordinal map. Kept aligned with three sites that hard-code the
+# Phase-to-ordinal map. Kept aligned with four sites that hard-code the
 # phase set: sd_phases.ordinal CHECK constraint (1..5), the Phase Literal
-# in sd_evaluator.py, and the Phase Literal in bank/sd_schemas.py. If the
-# phase set ever changes, all three sites need updating.
+# in sd_evaluator.py, the Phase Literal in bank/sd_schemas.py, and the
+# client-side mirror PHASE_ORDINAL in web/components/Chat.tsx (used by the
+# SSE consumer to update the phase tracker mid-session). If the phase set
+# ever changes, all four sites need updating.
 _PHASE_ORDINAL = {
     "clarify": 1, "estimate": 2, "high_level": 3,
     "deep_dive": 4, "tradeoffs": 5,
