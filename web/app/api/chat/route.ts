@@ -19,6 +19,12 @@ const ChatRequestSchema = z.object({
   // session_id so we can pin it into the system prompt - no synthetic user
   // primer needed. Optional: the homepage chat starts without a session.
   session_id: z.string().optional(),
+  // Browser pulls this from /api/session/[id] and threads it through so the
+  // coach prompt can dispatch to the right evaluator (evaluate_attempt for
+  // algo, evaluate_sd_attempt for system_design) without an extra
+  // get_session round-trip per turn. Optional for the upgrade window when
+  // old browser tabs may be open.
+  question_type: z.enum(["algo", "system_design"]).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -35,10 +41,10 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     )
   }
-  const { message, history, session_id } = parsed.data
+  const { message, history, session_id, question_type } = parsed.data
 
   const messages: WireMessage[] = [...history, { role: "user", content: message }]
-  const stream = sseStream(runLoop(messages, session_id))
+  const stream = sseStream(runLoop(messages, session_id, question_type))
   return new Response(stream, {
     headers: {
       "Content-Type": "text/event-stream",
@@ -51,18 +57,25 @@ export async function POST(req: NextRequest) {
 async function* runLoop(
   messages: WireMessage[],
   sessionId?: string,
+  questionType?: "algo" | "system_design",
 ): AsyncGenerator<any> {
   const startedAt = Date.now()
   const tools = await getToolCatalogue()
   let totalToolCalls = 0
   let cleanExit = false
 
-  // System prompt = coach base + session pin (when active). Putting session_id
-  // in the system position keeps it out of the user-message stream (no fake
-  // user turn) while still being visible to the model every iteration.
-  const system = sessionId
-    ? `${COACH_SYSTEM_PROMPT}\n\nCurrent session_id: ${sessionId}\nWhen calling evaluate_attempt, get_hint, get_session, or record_outcome, pass this session_id verbatim. Do NOT call get_next_question - the candidate is already in a session.`
-    : COACH_SYSTEM_PROMPT
+  // System prompt = coach base + session pin + type pin (when active). The
+  // base prompt contains type-dispatch instructions; the per-turn injection
+  // just states which branch to take. Keeping all three in the system position
+  // (not user) avoids a fake user turn and remains visible every iteration.
+  let system = COACH_SYSTEM_PROMPT
+  if (sessionId) {
+    system += `\n\nCurrent session_id: ${sessionId}`
+    if (questionType) {
+      system += `\nCurrent question_type: ${questionType}`
+    }
+    system += `\nWhen calling tools that take session_id, pass it verbatim. Do NOT call get_next_question - the candidate is already in a session.`
+  }
 
   for (let iter = 0; iter < MAX_ITERS; iter++) {
     const stream = anthropic.messages.stream({
