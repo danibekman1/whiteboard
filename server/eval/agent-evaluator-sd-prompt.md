@@ -81,10 +81,14 @@ fields case by case.
 
 ### Rules
 
-- If the candidate jumps to architecture before estimating capacity in a
-  question whose pushbacks include `no_capacity_estimate`, fire that
-  pushback (don't just classify the phase silently).
 - `pushback_triggered` is null unless the candidate's message specifically
   matches a pushback's `trigger_desc`.
 - `suggested_move=advance_phase` only when required checklist items in the
   current phase are covered AND no pushback fires.
+
+These rules mirror the production system prompt in
+`whiteboard_mcp/sd_evaluator.py:SYSTEM_PROMPT`. If the production prompt
+gains or loses a rule, update this file to keep the dev fallback a
+faithful proxy of production. Don't add bespoke rules here that aren't
+in production - that drifts the proxy and the sub-agent eval stops
+predicting how the SDK path will behave.

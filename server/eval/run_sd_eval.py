@@ -51,11 +51,14 @@ def _load_question(conn, slug: str) -> tuple[str, list[dict], list[dict]]:
     return q["statement"], phases, pushbacks
 
 
-def _matches(actual, expected) -> bool:
+def _matches(*, actual, expected) -> bool:
     """Match semantics: scalar expected -> exact equality; list expected ->
-    any-of (actual must be in the list). Lets cases with genuinely
-    defensible alternatives (e.g. nudge vs press_on_missing on incomplete
-    phases) assert a band rather than picking one arbitrarily."""
+    any-of (actual must be in the list). Keyword-only so call sites
+    can't silently swap arguments (the order is opposite to typical
+    assertEquals(expected, actual) APIs and the asymmetry here matters
+    when expected is a list). Lets cases with genuinely defensible
+    alternatives (e.g. nudge vs press_on_missing on incomplete phases)
+    assert a band rather than picking one arbitrarily."""
     if isinstance(expected, list):
         return actual in expected
     return actual == expected
@@ -70,17 +73,19 @@ def _check(name: str, expected: dict, actual: SDEvaluatorOutput) -> list[str]:
     here - the model legitimately decomposes coverage differently across
     runs and a strict assertion would be flaky."""
     fails = []
-    if "phase" in expected and not _matches(actual.phase, expected["phase"]):
+    if "phase" in expected and not _matches(
+        actual=actual.phase, expected=expected["phase"]
+    ):
         fails.append(f"phase: expected {expected['phase']!r}, got {actual.phase!r}")
     if "suggested_move" in expected and not _matches(
-        actual.suggested_move, expected["suggested_move"]
+        actual=actual.suggested_move, expected=expected["suggested_move"]
     ):
         fails.append(
             f"suggested_move: expected {expected['suggested_move']!r}, "
             f"got {actual.suggested_move!r}"
         )
     if "pushback_triggered" in expected and not _matches(
-        actual.pushback_triggered, expected["pushback_triggered"]
+        actual=actual.pushback_triggered, expected=expected["pushback_triggered"]
     ):
         fails.append(
             f"pushback_triggered: expected {expected['pushback_triggered']!r}, "

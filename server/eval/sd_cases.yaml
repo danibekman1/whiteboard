@@ -10,6 +10,17 @@
 # differently across runs). pushback_triggered is asserted only on cases
 # specifically designed to fire one, and the trigger_tag matches one in the
 # corresponding curated bank/seed/sd_curated/<slug>.json file.
+#
+# Expectation encoding:
+#   expect:
+#     phase: clarify                          # scalar = exact equality
+#     suggested_move: [nudge, press_on_missing]   # list = any-of (band)
+#     pushback_triggered: [no_failure_mode, null] # null in list = "or no pushback"
+# Use a list when the case has GENUINELY DEFENSIBLE alternatives (e.g.
+# nudge vs press_on_missing on incomplete phases, phase classification
+# when the candidate jumps phases). Pin a scalar when there's exactly
+# one correct answer. The _matches helper in run_sd_eval.py interprets
+# scalar as exact, list as any-of.
 
 # === url-shortener ===
 # Pushbacks in this question's bank: no_capacity_estimate, single_db_at_scale,

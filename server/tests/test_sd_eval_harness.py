@@ -10,10 +10,11 @@ Validates:
 from __future__ import annotations
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import yaml
 
-from whiteboard_mcp.sd_evaluator import SDEvaluatorOutput
+from whiteboard_mcp.sd_evaluator import SDEvaluatorOutput, evaluate
 
 ROOT = Path(__file__).parent.parent
 CASES_PATH = ROOT / "eval" / "sd_cases.yaml"
@@ -23,9 +24,18 @@ CURATED = ROOT / "bank" / "seed" / "sd_curated"
 def test_cases_yaml_parses_and_has_minimum_cases():
     cases = yaml.safe_load(CASES_PATH.read_text())
     assert isinstance(cases, list)
-    # Designed for ~18 cases across 3 questions; floor at 15 so an
-    # incidental case removal during iteration doesn't break this.
-    assert len(cases) >= 15
+    # Designed for 18 cases (7 url-shortener / 5 parking-lot / 6 rate-limiter).
+    # Tight floor: a deletion of one whole question's coverage drops below 15,
+    # which would slip past a looser bound.
+    assert len(cases) >= 18
+    # Each curated question must keep at least 4 cases - protects coverage
+    # of the three behavioral axes (phase / move / pushback) per question
+    # against accidental deletion.
+    by_slug: dict[str, int] = {}
+    for c in cases:
+        by_slug[c["question_slug"]] = by_slug.get(c["question_slug"], 0) + 1
+    for slug, n in by_slug.items():
+        assert n >= 4, f"{slug} has only {n} cases (floor: 4)"
 
 
 def test_every_case_references_a_curated_slug():
@@ -155,6 +165,84 @@ def test_check_helper_accepts_list_suggested_move_membership():
     from eval.run_sd_eval import _check
     actual = SDEvaluatorOutput(phase="clarify", suggested_move="press_on_missing")
     assert _check("t", {"suggested_move": ["nudge", "press_on_missing"]}, actual) == []
+
+
+# --- Mocked end-to-end round-trip ------------------------------------------
+
+def _mock_response_with_tool_use(payload: dict) -> MagicMock:
+    block = MagicMock()
+    block.type = "tool_use"
+    block.name = "submit_sd_evaluation"
+    block.input = payload
+    response = MagicMock()
+    response.content = [block]
+    return response
+
+
+def test_evaluate_to_check_round_trip_pass():
+    """Wire test: evaluator output -> _check passes for a matching case.
+
+    Catches schema drift between SDEvaluatorOutput and _check's field
+    reads (`actual.phase`, `actual.suggested_move`, `actual.pushback_triggered`).
+    The unit tests above build SDEvaluatorOutput by hand, so a field
+    rename would still pass them; this test pulls the output through
+    the real evaluate() codepath with a mocked Anthropic client, then
+    runs _check on the result."""
+    from eval.run_sd_eval import _check
+
+    client = MagicMock()
+    client.messages.create.return_value = _mock_response_with_tool_use({
+        "phase": "estimate",
+        "checklist_covered": [1, 2, 3],
+        "checklist_missing_required": [],
+        "pushback_triggered": None,
+        "suggested_move": "advance_phase",
+    })
+    out = evaluate(
+        client=client,
+        question_statement="Design a URL shortener.",
+        phases=[{"phase": "estimate", "ordinal": 2,
+                 "checklist": [{"id": 1, "item": "Write QPS", "required": True}]}],
+        pushbacks=[],
+        session_so_far=[],
+        user_text="100M URLs/year is roughly 3 writes/sec...",
+    )
+    assert isinstance(out, SDEvaluatorOutput)
+    # Scalar expected
+    assert _check("rt-pass", {"phase": "estimate"}, out) == []
+    # List expected (any-of) - validates list semantics on a real
+    # evaluate() output, not a hand-built one.
+    assert _check(
+        "rt-pass-list",
+        {"suggested_move": ["advance_phase", "press_on_missing"]},
+        out,
+    ) == []
+
+
+def test_evaluate_to_check_round_trip_fail():
+    """Same wiring, but assert the fail path produces a useful message."""
+    from eval.run_sd_eval import _check
+
+    client = MagicMock()
+    client.messages.create.return_value = _mock_response_with_tool_use({
+        "phase": "clarify",
+        "checklist_covered": [],
+        "checklist_missing_required": [1],
+        "pushback_triggered": None,
+        "suggested_move": "press_on_missing",
+    })
+    out = evaluate(
+        client=client,
+        question_statement="Design a URL shortener.",
+        phases=[{"phase": "clarify", "ordinal": 1,
+                 "checklist": [{"id": 1, "item": "Functional scope", "required": True}]}],
+        pushbacks=[],
+        session_so_far=[],
+        user_text="...",
+    )
+    fails = _check("rt-fail", {"phase": "estimate"}, out)
+    assert len(fails) == 1
+    assert "estimate" in fails[0] and "clarify" in fails[0]
 
 
 def test_check_helper_pushback_list_with_null_member():
