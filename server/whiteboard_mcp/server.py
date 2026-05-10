@@ -15,6 +15,7 @@ from whiteboard_mcp.db import connect, ensure_schema
 from whiteboard_mcp.topic_seed_loader import ingest_topics, ingest_topic_prereqs
 from bank.ingest import ingest_bank
 from whiteboard_mcp.tools.evaluate_attempt import evaluate_attempt as _evaluate_attempt
+from whiteboard_mcp.tools.evaluate_sd_attempt import evaluate_sd_attempt as _evaluate_sd_attempt
 from whiteboard_mcp.tools.get_next_question import get_next_question as _get_next_question
 from whiteboard_mcp.tools.get_hint import get_hint as _get_hint
 from whiteboard_mcp.tools.record_outcome import record_outcome as _record_outcome
@@ -96,6 +97,31 @@ def evaluate_attempt(session_id: str, user_text: str) -> dict:
     """
     with contextlib.closing(get_conn()) as conn:
         return _evaluate_attempt(conn, session_id=session_id, user_text=user_text)
+
+
+@mcp.tool()
+def evaluate_sd_attempt(session_id: str, user_text: str) -> dict:
+    """Submit the candidate's latest message for evaluation on an SD session.
+
+    Runs the inner Opus evaluator against the question's phases, checklists,
+    and pushbacks plus the candidate's text and prior session attempts.
+    Returns:
+      {phase, checklist_covered, checklist_missing_required,
+       pushback_triggered, suggested_move}
+
+    Use ONLY for system-design questions. For algo questions call
+    evaluate_attempt instead - this tool returns
+    {error: 'wrong_question_type', got, expected} if called on an algo
+    session.
+
+    Other errors:
+      {error: 'not_found', entity: 'session', ...} - session_id unknown
+      {error: 'evaluator_timeout'}                  - inner LLM exceeded 60s
+      {error: 'evaluator_parse_failed', raw: ...}   - inner LLM returned malformed
+      {error: 'internal_error', message: ...}       - unexpected failure
+    """
+    with contextlib.closing(get_conn()) as conn:
+        return _evaluate_sd_attempt(conn, session_id=session_id, user_text=user_text)
 
 
 @mcp.tool()
