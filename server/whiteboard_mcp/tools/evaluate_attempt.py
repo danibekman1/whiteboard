@@ -1,4 +1,12 @@
-"""evaluate_attempt tool: runs the inner evaluator and persists the attempt."""
+"""evaluate_attempt tool: runs the inner evaluator and persists the attempt.
+
+FIXME(v0.7-pr4): symmetric type-guard. evaluate_sd_attempt rejects algo
+sessions with wrong_question_type; this tool does NOT yet reject SD
+sessions. Calling this on an SD session today fetches zero rows from
+`steps`, feeds canonical=[] to the algo evaluator, and persists a
+malformed attempt. The wrong_question_type error helper exists; the
+guard is deferred to PR 4 per the v0.7 plan to keep PR 3 scoped.
+"""
 from __future__ import annotations
 import json
 import logging
@@ -12,7 +20,8 @@ from whiteboard_mcp.errors import (
     internal_error,
     not_found,
 )
-from whiteboard_mcp.evaluator import evaluate, get_anthropic_client
+from whiteboard_mcp._anthropic import get_anthropic_client
+from whiteboard_mcp.evaluator import evaluate
 
 log = logging.getLogger(__name__)
 

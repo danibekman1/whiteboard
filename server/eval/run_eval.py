@@ -25,7 +25,8 @@ from pathlib import Path
 import yaml
 
 from whiteboard_mcp.db import connect, ensure_schema
-from whiteboard_mcp.evaluator import evaluate, get_anthropic_client
+from whiteboard_mcp._anthropic import get_anthropic_client
+from whiteboard_mcp.evaluator import evaluate
 from whiteboard_mcp.topic_seed_loader import ingest_topics
 from bank.ingest import ingest_bank
 

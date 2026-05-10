@@ -15,6 +15,8 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel, Field
 
+from whiteboard_mcp._anthropic import get_anthropic_client
+
 
 # Match algo evaluator's 60s upper bound. Past this we surface
 # evaluator_timeout() rather than hanging the MCP request.
@@ -23,6 +25,11 @@ EVALUATOR_TIMEOUT_S = 60.0
 
 Phase = Literal["clarify", "estimate", "high_level", "deep_dive", "tradeoffs"]
 SDMove = Literal["press_on_missing", "advance_phase", "pushback", "nudge", "reanchor"]
+
+# Used by evaluate_sd_attempt._load_session_so_far when a prior attempt's
+# evaluator_json is malformed. Living next to the Phase Literal so the two
+# move together if the phase set ever shifts.
+DEFAULT_PHASE_FALLBACK: Phase = "clarify"
 
 
 class SDEvaluatorOutput(BaseModel):
@@ -36,7 +43,8 @@ class SDEvaluatorOutput(BaseModel):
         default_factory=list,
         description=(
             "Checklist item ids in the current phase that the candidate has "
-            "addressed. Use the ids from the phases input."
+            "addressed across this turn AND prior turns (cumulative). Use the "
+            "ids from the phases input."
         ),
     )
     checklist_missing_required: list[int] = Field(
@@ -148,16 +156,6 @@ def _build_user_message(
         f"<session_so_far>\n{history_block}\n</session_so_far>\n\n"
         f"<candidate_message>\n{user_text}\n</candidate_message>"
     )
-
-
-def get_anthropic_client() -> anthropic.Anthropic:
-    """Same shape as evaluator.get_anthropic_client - duplicated rather than
-    imported so the SD path does not silently break if the algo path renames
-    the helper."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY is not set")
-    return anthropic.Anthropic(api_key=api_key)
 
 
 def evaluate(

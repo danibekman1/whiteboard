@@ -11,6 +11,8 @@ from typing import Literal
 import anthropic
 from pydantic import BaseModel, Field
 
+from whiteboard_mcp._anthropic import get_anthropic_client
+
 
 # 60s upper bound on the inner LLM call. Past this we surface
 # evaluator_timeout() rather than hanging the MCP request.
@@ -77,15 +79,6 @@ def _build_user_message(
         f"<canonical_steps>\n{steps_block}\n</canonical_steps>\n\n"
         f"<candidate_message>\n{user_text}\n</candidate_message>"
     )
-
-
-def get_anthropic_client() -> anthropic.Anthropic:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        # Fail fast at construction rather than producing a confusing
-        # 401 from Anthropic at request time.
-        raise RuntimeError("ANTHROPIC_API_KEY is not set")
-    return anthropic.Anthropic(api_key=api_key)
 
 
 def evaluate(

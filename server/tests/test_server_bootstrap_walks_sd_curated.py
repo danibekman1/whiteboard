@@ -59,8 +59,9 @@ def test_bootstrap_ingests_seed_sd_curated(tmp_path: Path, monkeypatch):
     # the real seed file so topic ingest doesn't fail.
     monkeypatch.setattr(srv, "DB_PATH", db_path)
     monkeypatch.setattr(srv, "BANK_DIR", bank_generated)
-    # The real attribute name added in this task. Test asserts it exists.
-    monkeypatch.setattr(srv, "SD_CURATED_DIR", sd_curated, raising=False)
+    # raising=True (the default) so a future rename of SD_CURATED_DIR breaks
+    # this test rather than silently passing.
+    monkeypatch.setattr(srv, "SD_CURATED_DIR", sd_curated)
 
     srv._bootstrap()
 

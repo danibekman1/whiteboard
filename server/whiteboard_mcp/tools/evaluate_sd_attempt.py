@@ -18,7 +18,8 @@ from whiteboard_mcp.errors import (
     not_found,
     wrong_question_type,
 )
-from whiteboard_mcp.sd_evaluator import evaluate, get_anthropic_client
+from whiteboard_mcp._anthropic import get_anthropic_client
+from whiteboard_mcp.sd_evaluator import DEFAULT_PHASE_FALLBACK, evaluate
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ def _load_pushbacks(conn: sqlite3.Connection, question_id: int) -> list[dict]:
              "response": r["response"]} for r in rows]
 
 
-def _load_history(conn: sqlite3.Connection, session_id: str) -> list[dict]:
+def _load_session_so_far(conn: sqlite3.Connection, session_id: str) -> list[dict]:
     """Rebuild session_so_far from prior attempts. Each entry is the user_text
     plus the phase the evaluator resolved that turn to."""
     rows = conn.execute(
@@ -67,13 +68,13 @@ def _load_history(conn: sqlite3.Connection, session_id: str) -> list[dict]:
     ).fetchall()
     out = []
     for r in rows:
-        # If a prior attempt's evaluator_json is malformed, skip it - degrade
-        # gracefully rather than failing the new turn.
+        # If a prior attempt's evaluator_json is malformed, degrade gracefully
+        # rather than failing the new turn.
         try:
             ev = json.loads(r["evaluator_json"])
-            phase = ev.get("phase", "clarify")
+            phase = ev.get("phase", DEFAULT_PHASE_FALLBACK)
         except json.JSONDecodeError:
-            phase = "clarify"
+            phase = DEFAULT_PHASE_FALLBACK
         out.append({"phase": phase, "user_text": r["user_text"]})
     return out
 
@@ -96,7 +97,7 @@ def evaluate_sd_attempt(
 
     phases = _load_phases(conn, session["question_id"])
     pushbacks = _load_pushbacks(conn, session["question_id"])
-    history = _load_history(conn, session_id)
+    history = _load_session_so_far(conn, session_id)
 
     try:
         result = evaluate(

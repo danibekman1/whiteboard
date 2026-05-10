@@ -125,9 +125,11 @@ def test_evaluate_sd_attempt_passes_session_history_to_evaluator(db, tmp_path):
 
     # First call: empty history.
     assert captured_calls[0] == []
-    # Second call: history has one prior turn with phase=clarify.
+    # Second call: history reflects what the FIRST evaluator returned, not a
+    # hard-coded value (catches regressions where _load_session_so_far reads
+    # from the wrong source but happens to produce a plausible phase).
     assert len(captured_calls[1]) == 1
-    assert captured_calls[1][0]["phase"] == "clarify"
+    assert captured_calls[1][0]["phase"] == first.phase
     assert "fast redirects" in captured_calls[1][0]["user_text"]
 
 
@@ -185,7 +187,44 @@ def test_evaluate_sd_attempt_parse_failure(db, tmp_path):
         result = evaluate_sd_attempt(db, session_id=sid, user_text="anything")
 
     assert result["error"] == "evaluator_parse_failed"
-    assert "tool_use" in result["raw"]
+    assert result["raw"] == "evaluator returned no tool_use block"
+    n = db.execute("SELECT COUNT(*) AS c FROM attempts WHERE session_id=?", (sid,)).fetchone()["c"]
+    assert n == 0  # parse failure must not persist an attempt
+
+
+def test_evaluate_sd_attempt_degrades_on_malformed_prior_evaluator_json(db, tmp_path):
+    """If a prior attempt row has malformed evaluator_json, the next turn
+    should still run and the rebuilt session_so_far should fall back to the
+    DEFAULT_PHASE_FALLBACK for that entry. Pins the degradation contract in
+    _load_session_so_far so a future refactor doesn't turn the json error
+    into a 500."""
+    _bootstrap_with_curated_sd(db, tmp_path)
+    sid = get_next_question(db, slug="url-shortener")["session_id"]
+
+    # Seed a malformed prior attempt directly (bypassing the tool).
+    db.execute(
+        "INSERT INTO attempts (session_id, ordinal, user_text, evaluator_json) "
+        "VALUES (?,?,?,?)",
+        (sid, 1, "earlier garbled turn", "{not valid json"),
+    )
+    db.commit()
+
+    captured = []
+
+    def fake_evaluate(*, session_so_far, **kwargs):
+        captured.append(session_so_far)
+        return _mock_evaluator_output(phase="estimate", suggested_move="advance_phase")
+
+    with patch("whiteboard_mcp.tools.evaluate_sd_attempt.evaluate", side_effect=fake_evaluate), \
+         patch("whiteboard_mcp.tools.evaluate_sd_attempt.get_anthropic_client",
+               return_value=MagicMock()):
+        result = evaluate_sd_attempt(db, session_id=sid, user_text="next turn")
+
+    assert result["phase"] == "estimate"
+    assert len(captured[0]) == 1
+    # Fell back to the default phase rather than raising.
+    assert captured[0][0]["phase"] == "clarify"
+    assert captured[0][0]["user_text"] == "earlier garbled turn"
 
 
 def test_evaluate_sd_attempt_internal_error(db, tmp_path):
@@ -200,3 +239,5 @@ def test_evaluate_sd_attempt_internal_error(db, tmp_path):
 
     assert result["error"] == "internal_error"
     assert "network exploded" in result["message"]
+    n = db.execute("SELECT COUNT(*) AS c FROM attempts WHERE session_id=?", (sid,)).fetchone()["c"]
+    assert n == 0  # internal error must not persist a half-formed attempt

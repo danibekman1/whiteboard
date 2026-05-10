@@ -94,6 +94,13 @@ def test_build_user_message_includes_all_blocks():
     assert "100M URLs/year" in msg
     # History section appears.
     assert "I'd start by asking" in msg
+    # Section ordering: phases before pushbacks before session_so_far before
+    # candidate_message. A bug that swapped XML tags would still satisfy the
+    # substring asserts above but fail this one.
+    assert (msg.index("<phases>")
+            < msg.index("<pushbacks>")
+            < msg.index("<session_so_far>")
+            < msg.index("<candidate_message>"))
 
 
 def test_build_user_message_handles_empty_history():

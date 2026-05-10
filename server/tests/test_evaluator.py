@@ -187,7 +187,7 @@ def test_evaluate_falls_back_to_env_model(monkeypatch):
 
 
 def test_get_anthropic_client_fails_fast_on_missing_key(monkeypatch):
-    from whiteboard_mcp.evaluator import get_anthropic_client
+    from whiteboard_mcp._anthropic import get_anthropic_client
 
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
