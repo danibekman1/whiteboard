@@ -123,8 +123,10 @@ _QUESTIONS_NEW_COLUMNS = [  # v0.5a
     ("leetcode_id", "INTEGER"),
     ("topic_id",    "INTEGER REFERENCES topics(id)"),
     # v0.7: discriminator between algo and system_design questions.
-    # DEFAULT 'algo' backfills v0.6 rows on first boot; sd_generator output
-    # sets type explicitly so no API-level default exists.
+    # DEFAULT 'algo' backfills v0.6 rows on first boot. New writes from
+    # bank/ingest.py set `type` explicitly via the dispatch in
+    # _ingest_algo / _ingest_sd, so the column default isn't relied on at
+    # the API surface.
     ("type",        "TEXT NOT NULL DEFAULT 'algo' "
                     "CHECK (type IN ('algo', 'system_design'))"),
 ]

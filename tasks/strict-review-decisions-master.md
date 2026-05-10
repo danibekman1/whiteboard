@@ -63,3 +63,19 @@ spec: docs/plans/2026-05-03-whiteboard-v0.6-roadmap.md
 | 42 | Route tests absent | test-validation | api/roadmap/route.ts, api/start-question/route.ts | thin proxies untested | DEFER: same precedent as /api/chat untested; routes are thin proxies | 2026-05-03 |
 | 43 | Loose typing | style | app/page.tsx, start-question/route.ts | any[] for questions/recommendation/weakness | DEFER: payload shape may churn; revisit when stable | 2026-05-03 |
 | 44 | Coach prompt rule placement | spec-compliance | web/lib/coach-prompt.ts | spec drafted as rule 5; impl placed as rule 7 (5/6 already exist) | KEEP: preserving prior numbering is more correct than overwriting unrelated rules | 2026-05-03 |
+
+## v0.7 PR 1 round (commits 3e5cd3b..c2ee22e)
+
+spec: docs/plans/2026-05-08-whiteboard-v0.7-system-design.md (§2 + §5)
+
+| ID | Pattern | Skill | File:Line | Finding | Decision | Date |
+|----|---------|-------|-----------|---------|----------|------|
+| 45 | Stale docstring | style | server/bank/ingest.py:1-11 | Module docstring describes only algo path; missing SD-ingest description | FIX: extended docstring to cover dispatch + SD path; clarified that SD has no `current_step_id`-equivalent | 2026-05-09 |
+| 46 | Stale comment | style | server/whiteboard_mcp/db.py:124-128 | `type` column comment referenced future `sd_generator` not yet shipped | FIX: rephrased to reference `_ingest_algo`/`_ingest_sd` (the actual producers) | 2026-05-09 |
+| 47 | Boundary value gap | test-validation | server/tests/test_ingest_sd.py | No test for malformed SD JSON skip path | FIX: added `test_sd_ingest_skips_malformed_json` (4-phase fixture) | 2026-05-09 |
+| 48 | Boundary value gap | test-validation | server/tests/test_db_migration_sd.py | `type` CHECK positive cases (`'algo'`, `'system_design'`) untested | FIX: added `test_questions_type_accepts_both_valid_values` | 2026-05-09 |
+| 49 | Presence-only assertion | test-validation | server/tests/test_ingest_sd.py:75-77 | Re-ingest verified counts but not content fidelity | FIX: added assertion that the modified item text actually landed | 2026-05-09 |
+| 50 | Lenient assertion | test-validation | server/tests/test_ingest_sd.py:55-57 | Checklist count not joined to phase to verify per-phase distribution | FIX: added GROUP BY phase assertion (3 items each) | 2026-05-09 |
+| 51 | Moved behavior changed | refactoring-safety | server/bank/ingest.py:131-141 | try/except now wraps DB write; "schema invalid" message misleading on integrity errors | FIX (option A): kept broader scope (per-file failures non-fatal), changed message to `skip {path}: {e}`; updated existing test_ingest_skips_corrupt to drop the over-specified "schema invalid" assertion | 2026-05-09 |
+| 52 | Test fixture footgun | test-validation | server/tests/test_ingest_sd.py:37 | `[dict] * 3` shared references | FIX: switched to `[... for _ in range(3)]` | 2026-05-09 |
+| 53 | Spec deviation | spec-compliance | server/whiteboard_mcp/db.py:90,100,109 | `INTEGER PRIMARY KEY AUTOINCREMENT` vs spec's `INTEGER PRIMARY KEY` | KEEP: monotonic IDs across re-ingests are safer; matches existing `questions.id` / `steps.id` pattern; needed for `test_sd_re_ingest_replaces_phases_no_orphans` disjoint-IDs assertion | 2026-05-09 |

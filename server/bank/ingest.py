@@ -1,14 +1,19 @@
 """Ingest bank/generated/<slug>.json files into coach.db.
 
-Idempotent: re-running replaces steps/hints/topics for each question, but
-preserves the question's id (so existing sessions still resolve).
+Dispatches per-file on the JSON's `type` field (absent or 'algo' -> algo
+path; 'system_design' -> SD path). Both paths are idempotent: re-running
+preserves the question's id so existing session FKs survive.
 
-Side effect on re-ingest: any in-flight session whose `current_step_id`
-points to a step row about to be deleted gets its pointer set to NULL
-first (otherwise the FK constraint blocks the delete). Callers of
-`get_hint` on those sessions will receive `no_current_step` until the
-candidate makes another attempt and the evaluator reassigns
-`current_step_id`."""
+Algo path: replaces steps/hints/topics for each question. Side effect on
+re-ingest: any in-flight session whose `current_step_id` points to a step
+row about to be deleted gets its pointer set to NULL first (otherwise the
+FK constraint blocks the delete). Callers of `get_hint` on those sessions
+receive `no_current_step` until the candidate makes another attempt and
+the evaluator reassigns `current_step_id`.
+
+SD path: replaces sd_phases (CASCADE-deletes sd_checklist) and
+sd_pushbacks. No session pointer to null - SD phase state lives in
+`attempts.evaluator_json`, not on `sessions`."""
 from __future__ import annotations
 import json
 import sqlite3
@@ -131,6 +136,8 @@ def ingest_bank(conn: sqlite3.Connection, generated_dir: Path) -> int:
     unknown_secondary: set[str] = set()
     n = 0
     for path in files:
+        # Per-file try: any failure (corrupt JSON, schema invalid, DB write
+        # error) is logged and skipped so one bad file doesn't abort the run.
         try:
             raw = json.loads(path.read_text())
             # Dispatch on `type` field. Absent -> 'algo' (preserves v0.5a/v0.6
@@ -143,8 +150,8 @@ def ingest_bank(conn: sqlite3.Connection, generated_dir: Path) -> int:
                 algo_q = QuestionJSON.model_validate(raw)
                 _ingest_algo(conn, algo_q, topics, unknown_secondary)
         except Exception as e:
-            print(f"  skip {path.name}: schema invalid ({e})", file=sys.stderr)
-            continue
+            print(f"  skip {path.name}: {e}", file=sys.stderr)
+            continue  # don't bump n on failure
         n += 1
     conn.commit()
     if unknown_secondary:

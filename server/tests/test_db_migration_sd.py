@@ -92,6 +92,23 @@ def test_questions_type_check_constraint(tmp_path: Path):
                          "VALUES ('q1', 't', 's', 'easy', 'totally_invalid')")
 
 
+def test_questions_type_accepts_both_valid_values(tmp_path: Path):
+    """Pin the two-value enum: accidentally tightening the CHECK to a
+    single value would still leave 'totally_invalid' rejected, so the
+    negative test alone is insufficient."""
+    db = tmp_path / "fresh.db"
+    with connect(db) as conn:
+        ensure_schema(conn)
+        conn.execute("INSERT INTO questions (slug, title, statement, difficulty, type) "
+                     "VALUES ('q-algo', 't', 's', 'easy', 'algo')")
+        conn.execute("INSERT INTO questions (slug, title, statement, difficulty, type) "
+                     "VALUES ('q-sd', 't', 's', 'medium', 'system_design')")
+        types = {r["slug"]: r["type"] for r in conn.execute(
+            "SELECT slug, type FROM questions ORDER BY slug"
+        ).fetchall()}
+        assert types == {"q-algo": "algo", "q-sd": "system_design"}
+
+
 def test_migration_is_idempotent(tmp_path: Path):
     db = tmp_path / "fresh.db"
     with connect(db) as conn:

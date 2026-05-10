@@ -121,7 +121,6 @@ def test_ingest_skips_corrupt_json_file_and_continues(conn, tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert "skip broken.json" in captured.err.lower()
-    assert "schema invalid" in captured.err.lower()
     nq = conn.execute("SELECT COUNT(*) AS c FROM questions").fetchone()["c"]
     assert nq == 1
 

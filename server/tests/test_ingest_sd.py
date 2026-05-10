@@ -32,7 +32,7 @@ def _algo_json(slug: str = "two-sum") -> dict:
         "canonical_solution": {"language": "python",
                                "code": "def two_sum(n,t): return [0,1]\n",
                                "time": "O(n)", "space": "O(n)"},
-        "test_cases": [{"input": [[2, 7], 9], "expected": [0, 1]}] * 3,
+        "test_cases": [{"input": [[2, 7], 9], "expected": [0, 1]} for _ in range(3)],
         "steps": [{"ordinal": i,
                    "description": f"step {i} long enough",
                    "pattern_tags": ["t"],
@@ -105,6 +105,14 @@ def test_sd_ingest_creates_phases_checklist_pushbacks(db, tmp_path):
         WHERE phase_id IN (SELECT id FROM sd_phases WHERE question_id=?)
     """, (q["id"],)).fetchone()["c"]
     assert cl == 15  # 5 phases x 3 items
+
+    # Verify per-phase distribution: 3 items each, none clumped on one phase.
+    per_phase = db.execute("""
+        SELECT p.phase, COUNT(c.id) AS n FROM sd_phases p
+        LEFT JOIN sd_checklist c ON c.phase_id = p.id
+        WHERE p.question_id=? GROUP BY p.id ORDER BY p.ordinal
+    """, (q["id"],)).fetchall()
+    assert all(r["n"] == 3 for r in per_phase)
 
     pb = db.execute(
         "SELECT COUNT(*) AS c FROM sd_pushbacks WHERE question_id=?", (q["id"],)
@@ -182,6 +190,31 @@ def test_sd_re_ingest_replaces_phases_no_orphans(db, tmp_path):
         "SELECT id FROM sd_phases WHERE question_id=?", (qid,)
     ).fetchall()}
     assert new_phase_ids.isdisjoint(first_phase_ids)
+
+    # Content fidelity: verify the modified item actually landed (not the
+    # original "item 0..." string from the first ingest).
+    modified = db.execute("""
+        SELECT c.item FROM sd_checklist c
+        JOIN sd_phases p ON c.phase_id = p.id
+        WHERE p.question_id=? AND p.ordinal=1 AND c.ordinal=1
+    """, (qid,)).fetchone()["item"]
+    assert modified == "modified item, still long enough"
+
+
+def test_sd_ingest_skips_malformed_json(db, tmp_path, capsys):
+    """Mirror of the algo path's malformed-skip behavior: an SD JSON that
+    fails Pydantic validation must be skipped with a stderr warning rather
+    than aborting the whole ingest."""
+    ingest_topics(db, SEED / "topics.json")
+    gen = tmp_path / "gen"
+    gen.mkdir()
+    bad = _sd_json()
+    bad["phases"] = bad["phases"][:4]  # only 4 phases - fails min_length=5
+    (gen / "bad.json").write_text(json.dumps(bad))
+
+    n = ingest_bank(db, gen)
+    assert n == 0
+    assert "skip bad.json" in capsys.readouterr().err.lower()
 
 
 def test_mixed_dir_ingests_both_types(db, tmp_path):
