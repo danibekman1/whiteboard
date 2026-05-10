@@ -1,0 +1,85 @@
+{
+  "slug": "parking-lot",
+  "type": "system_design",
+  "title": "Parking Lot",
+  "statement": "Design the software for a parking lot management system. Vehicles enter, are assigned a spot based on their size, pay on exit (rate depends on parking duration and vehicle type), and the system tracks occupancy in real time. The lot has multiple floors with mixed spot sizes (compact, regular, large). Optimize for correctness of billing and accurate real-time availability.",
+  "difficulty": "easy",
+  "scenario_tag": "OO design + capacity",
+  "phases": [
+    {
+      "phase": "clarify",
+      "ordinal": 1,
+      "checklist": [
+        {"item": "Functional scope: vehicle entry assigns a spot, vehicle exit calculates fee, real-time availability per floor and per spot size", "required": true},
+        {"item": "Vehicle types: motorcycle, car, truck, with size constraints (truck cannot fit in compact, motorcycle can fit in any)", "required": true},
+        {"item": "Pricing model: per-hour rate that depends on vehicle type; consider whether partial hours round up or are pro-rated", "required": true},
+        {"item": "Out of scope: reservations, monthly passes, EV charging, license-plate recognition (treat ticket-based entry as the v1)", "required": true},
+        {"item": "Concurrency model: multiple entry/exit gates can operate simultaneously without double-assigning a spot", "required": false}
+      ]
+    },
+    {
+      "phase": "estimate",
+      "ordinal": 2,
+      "checklist": [
+        {"item": "Lot size: typical airport lot is roughly 5,000 spots across 5 floors; pick a concrete number to ground the design", "required": true},
+        {"item": "Throughput: assume 10,000 entries and 10,000 exits per day, peaking at 500/hour during morning rush; well under 1 op/sec sustained", "required": true},
+        {"item": "Storage: per-vehicle ticket records are a few hundred bytes; even 5 years of history is well under 100GB", "required": true},
+        {"item": "Real-time availability query rate: every entry triggers a spot lookup, so QPS is bounded by entry throughput (negligible)", "required": false}
+      ]
+    },
+    {
+      "phase": "high_level",
+      "ordinal": 3,
+      "checklist": [
+        {"item": "Entities: ParkingLot, Floor, ParkingSpot (with size enum), Vehicle (with size enum), Ticket, PaymentProcessor", "required": true},
+        {"item": "Spot assignment policy: nearest-fit by size (motorcycle prefers compact spot before regular before large); track per-floor availability counters", "required": true},
+        {"item": "Ticket lifecycle: created on entry with timestamp and assigned spot; updated on exit with end-timestamp and computed fee", "required": true},
+        {"item": "API surface: enterVehicle(vehicle) -> Ticket; exitVehicle(ticket) -> Receipt; getAvailability(floor?) -> counts by size", "required": true},
+        {"item": "Persistence: relational DB fits naturally (spots, tickets, vehicle types are well-modeled as tables); single instance is enough at this scale", "required": false}
+      ]
+    },
+    {
+      "phase": "deep_dive",
+      "ordinal": 4,
+      "checklist": [
+        {"item": "Concurrent spot assignment: when two entry gates pick the same spot, one must lose; pessimistic locking on the spot row, or compare-and-swap on a status column", "required": true},
+        {"item": "Fee calculation: hours-elapsed * rate-per-hour, with a clear policy for partial hours (round up to next hour is the simplest customer-facing rule)", "required": true},
+        {"item": "Availability counters: maintain denormalized per-floor-per-size counters updated transactionally with spot status; reading the counter is O(1) instead of scanning all spots", "required": true},
+        {"item": "Ticket loss handling: if a customer loses their ticket, charge a flat lost-ticket fee; require validating against entry timestamp from camera log if available", "required": false},
+        {"item": "Edge cases: vehicle size that doesn't fit any available spot (lot full for that size); pricing changes mid-stay (lock rate at entry)", "required": false}
+      ]
+    },
+    {
+      "phase": "tradeoffs",
+      "ordinal": 5,
+      "checklist": [
+        {"item": "Strict nearest-fit assignment vs random-fit: strict optimizes space utilization (motorcycles in compact) but adds policy complexity; random is simpler but may fill compact spots with cars", "required": true},
+        {"item": "Pessimistic vs optimistic concurrency on spot assignment: pessimistic guarantees no double-assignment but creates lock contention at peak; optimistic retries are cheap at this throughput", "required": true},
+        {"item": "Single DB vs sharded by floor: single DB is plenty at 5,000 spots; sharding by floor only matters if we scale to a multi-lot operator (not in scope)", "required": true},
+        {"item": "Real-time vs eventually-consistent availability: signage and gate displays can tolerate a few seconds of staleness; that lets availability counters be cached", "required": false}
+      ]
+    }
+  ],
+  "pushbacks": [
+    {
+      "trigger_tag": "no_concurrency_model",
+      "trigger_desc": "Candidate designs spot assignment without addressing the case of two simultaneous entries competing for the same spot",
+      "response": "Two cars pull up to two different gates at the same instant, both eligible for the last compact spot on floor 2. What does your system do?"
+    },
+    {
+      "trigger_tag": "scan_for_availability",
+      "trigger_desc": "Candidate proposes scanning all spots on every entry to find a free one, instead of maintaining counters",
+      "response": "On every entry you walk through 5,000 spot rows looking for one that's free? At what scale does that stop being fine, and what would you do about it?"
+    },
+    {
+      "trigger_tag": "vague_pricing",
+      "trigger_desc": "Candidate gives a hand-wavy 'we charge per hour' without a concrete partial-hour policy",
+      "response": "A customer parks for 1 hour and 5 minutes. What does the system charge them - one hour, two hours, or 1.083 hours? Why?"
+    },
+    {
+      "trigger_tag": "no_size_hierarchy",
+      "trigger_desc": "Candidate ignores that smaller vehicles can fit in larger spots when no smaller spot is available",
+      "response": "It's Friday at 6pm, all the compact spots are full, but there are 50 large spots free. Do motorcycles get turned away? What's your policy and where does it live in the design?"
+    }
+  ]
+}
