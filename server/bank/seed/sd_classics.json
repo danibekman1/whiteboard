@@ -1,0 +1,12 @@
+[
+  {"slug": "url-shortener",   "title": "URL Shortener",                "difficulty": "medium", "scenario_tag": "high read traffic"},
+  {"slug": "parking-lot",     "title": "Parking Lot",                  "difficulty": "easy",   "scenario_tag": "OO design + capacity"},
+  {"slug": "rate-limiter",    "title": "Rate Limiter",                 "difficulty": "medium", "scenario_tag": "token bucket vs sliding window"},
+  {"slug": "chat-app",        "title": "Chat App",                     "difficulty": "medium", "scenario_tag": "real-time + presence"},
+  {"slug": "news-feed",       "title": "News Feed",                    "difficulty": "hard",   "scenario_tag": "fanout-on-write vs fanout-on-read"},
+  {"slug": "file-sync",       "title": "File Sync (Dropbox)",          "difficulty": "hard",   "scenario_tag": "chunking + delta sync"},
+  {"slug": "ride-share",      "title": "Ride-Share (Uber)",            "difficulty": "hard",   "scenario_tag": "geo-indexing + matching"},
+  {"slug": "top-k-trending",  "title": "Top-K Trending",               "difficulty": "medium", "scenario_tag": "approx algorithms + decay"},
+  {"slug": "web-crawler",     "title": "Web Crawler",                  "difficulty": "medium", "scenario_tag": "BFS + politeness + dedup"},
+  {"slug": "key-value-store", "title": "Distributed Key-Value Store",  "difficulty": "hard",   "scenario_tag": "consistent hashing + replication"}
+]
