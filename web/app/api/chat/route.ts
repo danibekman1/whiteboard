@@ -54,16 +54,13 @@ export async function POST(req: NextRequest) {
   })
 }
 
-async function* runLoop(
-  messages: WireMessage[],
+// Pure system-prompt builder. Kept separate so the per-turn injection
+// (session_id + question_type pin) can be unit-tested without spinning up
+// the full route + SDK.
+export function buildSystemPrompt(
   sessionId?: string,
   questionType?: "algo" | "system_design",
-): AsyncGenerator<any> {
-  const startedAt = Date.now()
-  const tools = await getToolCatalogue()
-  let totalToolCalls = 0
-  let cleanExit = false
-
+): string {
   // System prompt = coach base + session pin + type pin (when active). The
   // base prompt contains type-dispatch instructions; the per-turn injection
   // just states which branch to take. Keeping all three in the system position
@@ -76,6 +73,20 @@ async function* runLoop(
     }
     system += `\nWhen calling tools that take session_id, pass it verbatim. Do NOT call get_next_question - the candidate is already in a session.`
   }
+  return system
+}
+
+async function* runLoop(
+  messages: WireMessage[],
+  sessionId?: string,
+  questionType?: "algo" | "system_design",
+): AsyncGenerator<any> {
+  const startedAt = Date.now()
+  const tools = await getToolCatalogue()
+  let totalToolCalls = 0
+  let cleanExit = false
+
+  const system = buildSystemPrompt(sessionId, questionType)
 
   for (let iter = 0; iter < MAX_ITERS; iter++) {
     const stream = anthropic.messages.stream({

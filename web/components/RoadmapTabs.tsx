@@ -1,14 +1,17 @@
 "use client"
 import { useEffect, useState, type ReactNode } from "react"
 
-type Tab = "algos" | "system_design"
+// VALID is the source of truth; the Tab type derives from it. Adding a tab
+// means adding a literal here once - both the runtime check and the type
+// stay in sync.
+const VALID = ["algos", "system_design"] as const
+type Tab = (typeof VALID)[number]
 const STORAGE_KEY = "whiteboard-roadmap-tab"
-const VALID: Tab[] = ["algos", "system_design"]
 
 function loadInitialTab(): Tab {
   if (typeof window === "undefined") return "algos"
   const v = window.localStorage.getItem(STORAGE_KEY)
-  return VALID.includes(v as Tab) ? (v as Tab) : "algos"
+  return (VALID as readonly string[]).includes(v ?? "") ? (v as Tab) : "algos"
 }
 
 export function RoadmapTabs({
