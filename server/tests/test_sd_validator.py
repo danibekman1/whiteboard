@@ -41,8 +41,8 @@ def test_validate_one_accepts_valid_sd_json(tmp_path: Path):
     p.write_text(json.dumps(_valid_sd_json()))
     result = validate_one(p)
     assert result.ok is True
-    assert result.error is None
-    assert result.path == p
+    assert result.failures == []
+    assert result.slug == p.stem
 
 
 def test_validate_one_rejects_missing_phase(tmp_path: Path):
@@ -52,7 +52,7 @@ def test_validate_one_rejects_missing_phase(tmp_path: Path):
     p.write_text(json.dumps(raw))
     result = validate_one(p)
     assert result.ok is False
-    assert "phases" in result.error.lower()
+    assert any("phases" in f.lower() for f in result.failures)
 
 
 def test_validate_one_rejects_too_few_pushbacks(tmp_path: Path):
@@ -69,7 +69,7 @@ def test_validate_one_rejects_malformed_json(tmp_path: Path):
     p.write_text("{not valid json")
     result = validate_one(p)
     assert result.ok is False
-    assert "json" in result.error.lower() or "decode" in result.error.lower()
+    assert any("json" in f.lower() or "decode" in f.lower() for f in result.failures)
 
 
 def test_validate_one_rejects_wrong_type_discriminator(tmp_path: Path):
@@ -79,6 +79,24 @@ def test_validate_one_rejects_wrong_type_discriminator(tmp_path: Path):
     p = tmp_path / "x.json"
     raw = _valid_sd_json()
     raw["type"] = "algo"
+    p.write_text(json.dumps(raw))
+    result = validate_one(p)
+    assert result.ok is False
+
+
+def test_validate_one_rejects_too_few_checklist_items(tmp_path: Path):
+    p = tmp_path / "x.json"
+    raw = _valid_sd_json()
+    raw["phases"][0]["checklist"] = raw["phases"][0]["checklist"][:2]
+    p.write_text(json.dumps(raw))
+    result = validate_one(p)
+    assert result.ok is False
+
+
+def test_validate_one_rejects_bad_pushback_trigger_tag(tmp_path: Path):
+    p = tmp_path / "x.json"
+    raw = _valid_sd_json()
+    raw["pushbacks"][0]["trigger_tag"] = "Has-Uppercase-And-Hyphens"
     p.write_text(json.dumps(raw))
     result = validate_one(p)
     assert result.ok is False

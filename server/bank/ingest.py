@@ -175,13 +175,16 @@ def _cli() -> int:
     args.db.parent.mkdir(parents=True, exist_ok=True)
     with contextlib.closing(connect(args.db)) as conn:
         ensure_schema(conn)
-        n = ingest_bank(conn, args.dir)
+        ingest_bank(conn, args.dir)
         # Also ingest curated SD questions (committed to git, not generated).
         # ingest_bank is idempotent on slug, so overlapping dirs are safe.
         sd_curated = Path(__file__).parent / "seed" / "sd_curated"
         if sd_curated.exists():
-            n += ingest_bank(conn, sd_curated)
-        print(f"ingested {n} questions into {args.db}")
+            ingest_bank(conn, sd_curated)
+        # Print the actual row count, not the sum across calls (overlapping
+        # slugs would double-count if we summed).
+        total = conn.execute("SELECT COUNT(*) AS c FROM questions").fetchone()["c"]
+        print(f"ingested {total} questions into {args.db}")
     return 0
 
 

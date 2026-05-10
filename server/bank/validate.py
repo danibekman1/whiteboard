@@ -5,6 +5,9 @@ bank/seed/sd_curated/ (SD path: schema-only round-trip). Dispatches per-file
 on the JSON's `type` field (absent or 'algo' -> algo path; 'system_design'
 -> SD path). Use --type to restrict to one track.
 
+Exit codes: 0 = clean (or filter narrowed to 0 files), 1 = validation
+failures, 2 = nothing to validate at all (both source dirs empty).
+
 Usage:
     cd server && uv run python -m bank.validate
     cd server && uv run python -m bank.validate --type sd
@@ -16,7 +19,7 @@ import sys
 from pathlib import Path
 
 from bank import validator, sd_validator
-from bank.validator import ValidationReport, summarize
+from bank.validator import summarize
 
 
 def _peek_type(path: Path) -> str:
@@ -32,33 +35,39 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", type=Path, default=Path(__file__).parent / "generated")
     ap.add_argument("--csv", type=Path, default=Path(__file__).parent / "seed" / "optimal_complexity.csv")
+    ap.add_argument("--curated", type=Path,
+                    default=Path(__file__).parent / "seed" / "sd_curated",
+                    help="directory of hand-curated SD JSON (also walked unconditionally)")
     ap.add_argument("--type", choices=("algo", "sd", "all"), default="all",
                     help="restrict validation to one track (default: all)")
     args = ap.parse_args()
 
-    files = sorted(args.dir.glob("*.json"))
-    sd_curated = Path(__file__).parent / "seed" / "sd_curated"
-    if sd_curated.exists():
-        files += sorted(sd_curated.glob("*.json"))
+    all_files = sorted(args.dir.glob("*.json"))
+    if args.curated.exists():
+        all_files += sorted(args.curated.glob("*.json"))
+
+    # Preserve the v0.5a contract: empty source dirs is a hard error (exit 2)
+    # so CI catches a missing/misconfigured bank. A type filter narrowing
+    # N>0 files to 0 is a benign "nothing to do here" (exit 0).
+    if not all_files:
+        print(f"no JSON files under {args.dir} or {args.curated}", file=sys.stderr)
+        return 2
 
     if args.type == "algo":
-        files = [p for p in files if _peek_type(p) == "algo"]
+        files = [p for p in all_files if _peek_type(p) == "algo"]
     elif args.type == "sd":
-        files = [p for p in files if _peek_type(p) == "system_design"]
+        files = [p for p in all_files if _peek_type(p) == "system_design"]
+    else:
+        files = all_files
 
     if not files:
         print(f"0 files matched type={args.type}")
         return 0
 
-    reports: list[ValidationReport] = []
+    reports = []
     for p in files:
         if _peek_type(p) == "system_design":
-            res = sd_validator.validate_one(p)
-            reports.append(ValidationReport(
-                slug=p.stem,
-                ok=res.ok,
-                failures=[res.error] if res.error else [],
-            ))
+            reports.append(sd_validator.validate_one(p))
         else:
             reports.append(validator.validate_one(p, optimal_csv=args.csv))
 
