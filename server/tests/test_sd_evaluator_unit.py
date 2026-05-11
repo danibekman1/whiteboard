@@ -212,3 +212,27 @@ def test_evaluate_uses_forced_tool_choice():
     assert kwargs["tool_choice"] == {"type": "tool", "name": "submit_sd_evaluation"}
     # System prompt is the SD one, not the algo one (defensive: catches wiring mistakes).
     assert "phase" in kwargs["system"].lower()
+
+
+# --- typing contract: client=None on agent_sdk backend ---------------------
+
+def test_evaluate_accepts_none_client_on_agent_sdk_backend(monkeypatch):
+    """The agent_sdk backend ignores `client` (it constructs its own SDK MCP
+    server). The public signature must permit None to match runtime behavior
+    in eval/run_sd_eval.py, which passes client=None on that backend."""
+    monkeypatch.setenv("CHAT_BACKEND", "agent_sdk")
+    from whiteboard_mcp import sd_evaluator as mod
+
+    fixture = SDEvaluatorOutput(phase="clarify", suggested_move="nudge")
+    monkeypatch.setattr(mod, "evaluate_with_forced_tool", lambda **kw: fixture)
+
+    out = evaluate(
+        client=None,
+        question_statement="x" * 50,
+        phases=[{"phase": "clarify", "ordinal": 1,
+                 "checklist": [{"id": 1, "item": "a", "required": True}]}],
+        pushbacks=[{"trigger_tag": "t", "trigger_desc": "d" * 25, "response": "r" * 25}],
+        session_so_far=[],
+        user_text="hi",
+    )
+    assert out is fixture

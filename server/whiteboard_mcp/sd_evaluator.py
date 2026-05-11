@@ -155,7 +155,7 @@ def _build_user_message(
 
 def evaluate(
     *,
-    client: anthropic.Anthropic,
+    client: anthropic.Anthropic | None,
     question_statement: str,
     phases: list[dict],
     pushbacks: list[dict],
@@ -170,7 +170,9 @@ def evaluate(
     The caller is responsible for translating these to MCP error dicts.
 
     `client` is honored on the metered (api) backend; ignored on the
-    agent_sdk backend, which constructs its own SDK MCP server."""
+    agent_sdk backend, which constructs its own SDK MCP server. Pass `None`
+    when CHAT_BACKEND=agent_sdk (eval/run_sd_eval.py does this); pass a real
+    anthropic.Anthropic only when targeting the api backend."""
     model = model or os.environ.get("CLAUDE_COACH_MODEL", "claude-opus-4-7")
     return evaluate_with_forced_tool(
         system=SYSTEM_PROMPT,

@@ -192,3 +192,24 @@ def test_get_anthropic_client_fails_fast_on_missing_key(monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
         get_anthropic_client()
+
+
+def test_evaluate_accepts_none_client_on_agent_sdk_backend(monkeypatch):
+    """The agent_sdk backend ignores `client` (it constructs its own SDK MCP
+    server). The public signature must permit None to match runtime behavior
+    in eval/run_eval.py, which passes client=None on that backend."""
+    monkeypatch.setenv("CHAT_BACKEND", "agent_sdk")
+    from whiteboard_mcp import evaluator as mod
+
+    fixture = EvaluatorOutput(
+        step_ordinal=1, correct=True, missing=[], suggested_move="advance",
+    )
+    monkeypatch.setattr(mod, "evaluate_with_forced_tool", lambda **kw: fixture)
+
+    out = evaluate(
+        client=None,
+        question_statement="Q",
+        canonical_steps=[],
+        user_text="hi",
+    )
+    assert out is fixture
