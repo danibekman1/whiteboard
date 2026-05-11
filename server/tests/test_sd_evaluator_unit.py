@@ -219,12 +219,24 @@ def test_evaluate_uses_forced_tool_choice():
 def test_evaluate_accepts_none_client_on_agent_sdk_backend(monkeypatch):
     """The agent_sdk backend ignores `client` (it constructs its own SDK MCP
     server). The public signature must permit None to match runtime behavior
-    in eval/run_sd_eval.py, which passes client=None on that backend."""
+    in eval/run_sd_eval.py, which passes client=None on that backend.
+
+    Also pin pass-through: a future defensive default inside `evaluate()`
+    (e.g. `client = client or get_anthropic_client()`) would silently break
+    the agent_sdk caller's intent - building a client triggers
+    ANTHROPIC_API_KEY errors on that backend. Capturing the inner-call kwargs
+    catches that regression."""
     monkeypatch.setenv("CHAT_BACKEND", "agent_sdk")
     from whiteboard_mcp import sd_evaluator as mod
 
     fixture = SDEvaluatorOutput(phase="clarify", suggested_move="nudge")
-    monkeypatch.setattr(mod, "evaluate_with_forced_tool", lambda **kw: fixture)
+    captured: dict = {}
+
+    def _fake_backend(**kw):
+        captured.update(kw)
+        return fixture
+
+    monkeypatch.setattr(mod, "evaluate_with_forced_tool", _fake_backend)
 
     out = evaluate(
         client=None,
@@ -236,3 +248,4 @@ def test_evaluate_accepts_none_client_on_agent_sdk_backend(monkeypatch):
         user_text="hi",
     )
     assert out is fixture
+    assert captured["client"] is None
