@@ -50,6 +50,12 @@
 
 - name: url-shortener-estimates-correctly
   question_slug: url-shortener
+  # Realistic context: candidate has cleared clarify; this turn is the
+  # estimate-phase work. Without prior history the evaluator's
+  # "stay in earlier phase if ambiguous" rule pins to clarify.
+  session_so_far:
+    - phase: clarify
+      user_text: "Custom aliases optional, expiration optional, no analytics in v1. Read:write ratio 10:1, sub-100ms p99 redirect latency."
   user_text: "100M URLs/year is roughly 3 writes/sec, 30 reads/sec at 10:1, peak around 300/sec. Storage is ~250GB over 5 years."
   expect:
     phase: estimate
@@ -67,6 +73,13 @@
 
 - name: url-shortener-skips-cache
   question_slug: url-shortener
+  session_so_far:
+    - phase: clarify
+      user_text: "Custom aliases optional, no analytics, read-heavy 10:1."
+    - phase: estimate
+      user_text: "100M URLs/year, 3 writes/sec, 30 reads/sec at 10:1, peak 300/sec, ~250GB."
+    - phase: high_level
+      user_text: "API tier behind a load balancer, KV store for short_code -> long_url lookups."
   user_text: "Read path goes straight to the Postgres replica - the replica handles the read load."
   expect:
     # high_level (architectural overview) and deep_dive (drilling into
@@ -77,6 +90,15 @@
 
 - name: url-shortener-tradeoffs-counter-vs-hash
   question_slug: url-shortener
+  session_so_far:
+    - phase: clarify
+      user_text: "Custom aliases optional, no analytics, read-heavy 10:1."
+    - phase: estimate
+      user_text: "100M/year, 3 writes/sec, 30 reads/sec, 250GB."
+    - phase: high_level
+      user_text: "Stateless API tier, KV store, Redis cache fronting the KV."
+    - phase: deep_dive
+      user_text: "Redis with LRU for hot codes; KV sharded by short_code hash; 7-char base62 codes."
   user_text: "Counter-based generation needs a coordination point but avoids collisions; hash is distributable but needs retry logic on collision. I'd start with counter and shard later."
   expect:
     phase: tradeoffs
@@ -118,6 +140,15 @@
 
 - name: parking-lot-tradeoff-locking
   question_slug: parking-lot
+  session_so_far:
+    - phase: clarify
+      user_text: "Cars + motorcycles + trucks, fixed-size spots per vehicle type, 5000 spots total."
+    - phase: estimate
+      user_text: "Peak ~50 entries/min, ~50 exits/min, no special burst concerns."
+    - phase: high_level
+      user_text: "Entry service + spot allocator + ticket service + pricing service. Spots table keyed by spot_id."
+    - phase: deep_dive
+      user_text: "Allocator picks the lowest free spot_id for the matching vehicle type via indexed query."
   user_text: "Pessimistic locking guarantees no double-assignment but creates contention at peak; optimistic with retries is cheap at this throughput."
   expect:
     phase: tradeoffs
@@ -165,6 +196,13 @@
 
 - name: rate-limiter-token-bucket-deep-dive
   question_slug: rate-limiter
+  session_so_far:
+    - phase: clarify
+      user_text: "Per-second and per-minute quotas, client identified by API key, fail-closed on auth lookup."
+    - phase: estimate
+      user_text: "10k req/sec peak, 100ms p99 budget for the rate-limit check."
+    - phase: high_level
+      user_text: "Gateway -> Redis cluster for counters -> API tier. Counters keyed by (api_key, window)."
   user_text: "Token bucket: each client has a bucket that refills at the quota rate; each request consumes one token; reject when empty. Atomic via Redis Lua script."
   expect:
     phase: deep_dive

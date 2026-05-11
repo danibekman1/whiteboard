@@ -99,9 +99,11 @@ def main() -> int:
     if backend == "api" and not os.environ.get("ANTHROPIC_API_KEY"):
         print("ANTHROPIC_API_KEY not set (api backend)", file=sys.stderr)
         return 2
-    if backend == "agent_sdk" and not os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
-        print("CLAUDE_CODE_OAUTH_TOKEN not set (agent_sdk backend)", file=sys.stderr)
-        return 2
+    # agent_sdk backend doesn't strictly require CLAUDE_CODE_OAUTH_TOKEN -
+    # claude_agent_sdk spawns the local Claude Code CLI which discovers
+    # credentials from ~/.claude/.credentials.json. Skip the env var check.
+    # If neither the env var nor a local CLI login is present, the SDK
+    # raises a clear error inside evaluate_with_forced_tool.
     if not SD_CURATED.exists() or not any(SD_CURATED.glob("*.json")):
         print(f"{SD_CURATED} is empty - curated SD content missing", file=sys.stderr)
         return 2
@@ -126,13 +128,19 @@ def main() -> int:
             failures += 1
             continue
 
+        # session_so_far is optional per case. Default [] (zero-shot turn,
+        # used by clarify-phase cases). Cases that test post-clarify phases
+        # supply 1-3 prior turns to establish realistic session state - the
+        # production evaluator's "stay in earlier phase if ambiguous" rule
+        # pins everything to clarify when history is empty.
+        prior_turns = c.get("session_so_far", [])
         try:
             actual = evaluate(
                 client=client,
                 question_statement=statement,
                 phases=phases,
                 pushbacks=pushbacks,
-                session_so_far=[],
+                session_so_far=prior_turns,
                 user_text=c["user_text"],
             )
         except Exception as e:
