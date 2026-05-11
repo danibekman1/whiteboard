@@ -49,6 +49,7 @@ def test_every_case_references_a_curated_slug():
 
 def test_every_case_has_required_keys():
     cases = yaml.safe_load(CASES_PATH.read_text())
+    valid_phases = {"clarify", "estimate", "high_level", "deep_dive", "tradeoffs"}
     for c in cases:
         assert "name" in c
         assert "question_slug" in c
@@ -58,6 +59,17 @@ def test_every_case_has_required_keys():
         assert any(
             k in c["expect"] for k in ("phase", "suggested_move", "pushback_triggered")
         ), f"case {c['name']} asserts nothing"
+        # session_so_far is optional, but if present each entry must have
+        # a known `phase` and a `user_text` - same shape the production
+        # `_load_session_so_far` produces.
+        for i, turn in enumerate(c.get("session_so_far", [])):
+            assert "phase" in turn and "user_text" in turn, (
+                f"case {c['name']} session_so_far[{i}] missing phase/user_text"
+            )
+            assert turn["phase"] in valid_phases, (
+                f"case {c['name']} session_so_far[{i}] has unknown "
+                f"phase {turn['phase']!r}"
+            )
 
 
 def test_every_pushback_trigger_tag_exists_in_its_bank_file():
