@@ -32,7 +32,7 @@ cd "$(dirname "$0")/.."
 ENV_FILE=".env"
 [[ -f "$ENV_FILE" ]] || cp .env.example "$ENV_FILE"
 
-if grep -qE '^CLAUDE_CODE_OAUTH_TOKEN=(oat-|sk-ant-oat)' "$ENV_FILE"; then
+if grep -qE '^CLAUDE_CODE_OAUTH_TOKEN=(oat-|sk-ant-oat)[A-Za-z0-9_-]+$' "$ENV_FILE"; then
   echo "Token already set in $ENV_FILE."
   echo "Delete the CLAUDE_CODE_OAUTH_TOKEN line and re-run to refresh."
   exit 0
@@ -64,8 +64,8 @@ echo
 read -rp "Paste the token printed above: " TOKEN
 echo
 
-if [[ ! "$TOKEN" =~ ^(oat-|sk-ant-oat-)[A-Za-z0-9_-]+$ ]]; then
-  echo "ERROR: token must start with 'oat-' or 'sk-ant-oat-' and contain only [A-Za-z0-9_-]." >&2
+if [[ ! "$TOKEN" =~ ^(oat-|sk-ant-oat)[A-Za-z0-9_-]+$ ]]; then
+  echo "ERROR: token must start with 'oat-' or 'sk-ant-oat' and contain only [A-Za-z0-9_-]." >&2
   echo "Got: ${TOKEN:0:8}... (${#TOKEN} chars). Aborting without modifying $ENV_FILE." >&2
   exit 1
 fi
